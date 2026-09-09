@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   Printer,
   Download,
@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Booking } from '../types';
 import { soundFx } from '../utils/audio';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
 
 interface ReceiptPrintModalProps {
   isOpen: boolean;
@@ -31,6 +31,18 @@ export const ReceiptPrintModal: React.FC<ReceiptPrintModalProps> = ({
   const [isGeneratingImg, setIsGeneratingImg] = useState(false);
   const [printSuccessMsg, setPrintSuccessMsg] = useState<string | null>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen || !booking) return null;
 
@@ -101,80 +113,115 @@ ${booking.discountAmount > 0 ? `ส่วนลด: -฿${booking.discountAmount
   const handlePrint = () => {
     soundFx.playClick();
 
-    // Create a hidden print iframe to reliably trigger printing even inside sandboxed iframes
     const printContent = receiptRef.current?.innerHTML;
     if (!printContent) {
-      window.print();
+      try {
+        window.print();
+      } catch {
+        // Safe in iframe
+      }
       return;
     }
 
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
 
-    document.body.appendChild(iframe);
+      document.body.appendChild(iframe);
 
-    const doc = iframe.contentWindow?.document;
-    if (doc) {
-      doc.open();
-      doc.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>ใบเสร็จรับเงิน ${booking.queueNumber}</title>
-            <style>
-              @page { size: 80mm auto; margin: 5mm; }
-              body {
-                font-family: 'Courier New', Courier, monospace, sans-serif;
-                background: #ffffff;
-                color: #000000;
-                margin: 0;
-                padding: 10px;
-                font-size: 12px;
-                line-height: 1.4;
-              }
-              .text-center { text-align: center; }
-              .text-right { text-align: right; }
-              .font-bold { font-weight: bold; }
-              .divider { border-top: 1px dashed #000; margin: 8px 0; }
-              .flex-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
-              .qr-box { margin: 10px auto; text-align: center; }
-            </style>
-          </head>
-          <body>
-            ${printContent}
-            <script>
-              window.onload = function() {
-                window.focus();
-                window.print();
-                setTimeout(function() {
-                  window.frameElement.parentNode.removeChild(window.frameElement);
-                }, 1000);
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      doc.close();
-    } else {
-      window.print();
+      const doc = iframe.contentWindow?.document;
+      if (doc) {
+        doc.open();
+        doc.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>ใบเสร็จรับเงิน ${booking.queueNumber}</title>
+              <style>
+                @page { size: 80mm auto; margin: 5mm; }
+                body {
+                  font-family: 'Courier New', Courier, monospace, sans-serif;
+                  background: #ffffff;
+                  color: #000000;
+                  margin: 0;
+                  padding: 10px;
+                  font-size: 12px;
+                  line-height: 1.4;
+                }
+                .text-center { text-align: center; }
+                .text-right { text-align: right; }
+                .font-bold { font-weight: bold; }
+                .divider { border-top: 1px dashed #000; margin: 8px 0; }
+                .flex-row { display: flex; justify-content: space-between; margin-bottom: 3px; }
+                .qr-box { margin: 10px auto; text-align: center; }
+              </style>
+            </head>
+            <body>
+              ${printContent}
+            </body>
+          </html>
+        `);
+        doc.close();
+
+        setTimeout(() => {
+          try {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+          } catch {
+            try {
+              window.print();
+            } catch {
+              // Ignore
+            }
+          }
+          setTimeout(() => {
+            if (iframe.parentNode) {
+              iframe.parentNode.removeChild(iframe);
+            }
+          }, 2000);
+        }, 500);
+      } else {
+        window.print();
+      }
+    } catch {
+      try {
+        window.print();
+      } catch {
+        // Ignore
+      }
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto">
-      <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-3xl p-5 sm:p-6 shadow-2xl relative my-auto space-y-4">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/85 backdrop-blur-md animate-fadeIn overflow-y-auto cursor-pointer"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="cursor-default w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-3xl p-5 sm:p-6 shadow-2xl relative my-auto space-y-4"
+      >
         {/* Close Button */}
         <button
           type="button"
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white rounded-full bg-zinc-800/80 hover:bg-zinc-700 transition"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className="absolute top-4 right-4 w-10 h-10 text-zinc-300 hover:text-white rounded-full bg-zinc-800 hover:bg-zinc-700 active:scale-90 border border-zinc-700/60 shadow-md transition flex items-center justify-center cursor-pointer z-20"
+          title="ปิดหน้าต่างใบเสร็จ"
+          aria-label="ปิด"
         >
-          <X className="w-4 h-4" />
+          <X className="w-5 h-5" />
         </button>
 
         {/* Header Title */}

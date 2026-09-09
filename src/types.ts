@@ -77,6 +77,9 @@ export interface Booking {
   shopRevenueShare: number; // ฿ shop portion
   isWalkIn?: boolean;
   walkInTicketIssuedAt?: string;
+  loyaltyPointsEarned?: number;
+  loyaltyPointsRedeemed?: number;
+  isLoyaltyRewardApplied?: boolean;
   timeline: {
     status: BookingStatus;
     label: string;
@@ -122,6 +125,40 @@ export interface ShopSettings {
   currencySymbol: string;
   adminPin?: string; // 4-digit PIN for locking accounting and admin settings
   pinLockEnabled?: boolean;
+
+  // Advance Queue Notification Settings (แจ้งเตือนคิวล่วงหน้า)
+  advanceNotificationEnabled?: boolean;
+  advanceNotificationMinutes?: number; // e.g., 15 (minutes before queue time)
+  advanceNotificationType?: 'toast' | 'popup' | 'both';
+  advanceNotificationSound?: boolean;
+
+  // Loyalty Program Settings (ระบบสะสมแต้ม)
+  loyaltyEnabled?: boolean;
+  loyaltyPointsPerCut?: number; // default 1 (ตัด 1 ครั้งได้ 1 แต้ม)
+  loyaltyPointsRequired?: number; // default 10 (ครบ 10 แต้ม)
+  loyaltyRewardDiscount?: number; // default 150 (ส่วนลด ฿150)
+  loyaltyRewardTitle?: string; // default "ส่วนลดพิเศษ ฿150 (ครบ 10 แต้ม)"
+}
+
+export interface LoyaltyHistoryItem {
+  id: string;
+  date: string; // YYYY-MM-DD HH:mm
+  type: 'earn' | 'redeem' | 'bonus' | 'adjustment';
+  points: number; // +1 or -10
+  description: string;
+  bookingId?: string;
+}
+
+export interface CustomerLoyalty {
+  phone: string; // Normalized phone key
+  displayPhone: string;
+  customerName: string;
+  points: number; // Current available points (0 - 10+)
+  lifetimePoints: number; // Total points earned ever
+  totalVisits: number; // Total completed cuts
+  redeemedRewardsCount: number; // Times redeemed 10-point reward
+  history: LoyaltyHistoryItem[];
+  updatedAt: string;
 }
 
 export type ActiveTab = 'book' | 'live_queue' | 'barber_panel' | 'accounting' | 'history' | 'settings';

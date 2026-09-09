@@ -33,6 +33,10 @@ import {
   Upload,
   Image as ImageIcon,
   X,
+  Bell,
+  Volume2,
+  Database,
+  Cloud,
 } from 'lucide-react';
 import { useBooking, DEFAULT_SHOP_SETTINGS } from '../context/BookingContext';
 import { BarberId, Barber, Service, ServiceCategory, ShopSettings } from '../types';
@@ -57,6 +61,11 @@ export const AdminSettings: React.FC = () => {
     lockAdmin,
     updateAdminPin,
     togglePinLock,
+    triggerAdvanceQueueAlert,
+    firebaseStatus,
+    firebaseProjectId,
+    loyaltyRecords,
+    transactions,
   } = useBooking();
 
   const [activeSubTab, setActiveSubTab] = useState<'commission' | 'barbers' | 'services' | 'shop' | 'summary'>('commission');
@@ -143,39 +152,41 @@ export const AdminSettings: React.FC = () => {
   return (
     <div className="space-y-5 pb-24 animate-fadeIn">
       {/* Back-office Header */}
-      <div className="bg-gradient-to-r from-zinc-900 via-zinc-900 to-zinc-950 border border-zinc-800 rounded-3xl p-4 sm:p-5 shadow-xl">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="p-2 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                <Settings className="w-5 h-5" />
-              </span>
-              <div>
-                <h3 className="text-base sm:text-lg font-bold text-zinc-100 flex items-center space-x-2">
-                  <span>ระบบตั้งค่าหลังบ้าน (Back-Office Admin)</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30">
-                    ADMIN
-                  </span>
+      <div className="bg-gradient-to-r from-zinc-900 via-zinc-900 to-zinc-950 border border-zinc-800 rounded-3xl p-4 sm:p-5 shadow-xl space-y-4">
+        {/* Top Header: Title + Admin Badge + Action Buttons */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center space-x-3 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-inner">
+              <Settings className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-base sm:text-lg font-bold text-zinc-100 whitespace-nowrap">
+                  ระบบตั้งค่าหลังบ้าน (Back-Office)
                 </h3>
-                <p className="text-xs text-zinc-400">
-                  จัดการค่าคอมมิชชั่นช่าง (%), รายการบริการ, ข้อมูลช่าง 3 ท่าน และสัดส่วนเงินมัดจำ
-                </p>
+                <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30 font-mono tracking-wider shrink-0">
+                  ADMIN
+                </span>
               </div>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                จัดการค่าคอมมิชชั่นช่าง (%), รายการบริการ, ข้อมูลช่าง 3 ท่าน และสัดส่วนเงินมัดจำ
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2 self-start sm:self-auto">
+          {/* Action Buttons: 2 Equal-width balanced buttons */}
+          <div className="grid grid-cols-2 gap-2 shrink-0 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => {
                 lockAdmin();
                 setActiveTab('book');
               }}
-              className="text-xs px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 transition flex items-center space-x-1.5 shadow"
+              className="min-h-[42px] px-4 py-2 rounded-xl text-xs font-semibold bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 transition flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer active:scale-95 whitespace-nowrap"
               title="ล็อคระบบทันทีเพื่อความปลอดภัย"
             >
-              <Lock className="w-3.5 h-3.5" />
-              <span>ล็อคระบบทันที</span>
+              <Lock className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+              <span>ล็อคระบบ</span>
             </button>
 
             <button
@@ -184,66 +195,96 @@ export const AdminSettings: React.FC = () => {
                 soundFx.playClick();
                 setShowResetConfirmModal(true);
               }}
-              className="text-xs px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 border border-zinc-700 transition flex items-center space-x-1.5"
+              className="min-h-[42px] px-4 py-2 rounded-xl text-xs font-semibold bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 transition flex items-center justify-center space-x-1.5 shadow-sm cursor-pointer active:scale-95 whitespace-nowrap"
+              title="คืนค่าการตั้งค่าเริ่มต้น"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <RotateCcw className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
               <span>คืนค่าเริ่มต้น</span>
             </button>
           </div>
         </div>
 
-        {/* Sub-navigation Tabs */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 mt-4 pt-3 border-t border-zinc-800">
+        {/* Firebase Cloud Firestore Live Status Card */}
+        <div id="firebase-cloud-status-card" className="p-3 bg-zinc-950/80 border border-amber-500/25 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-inner">
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
+              <Database className="w-4 h-4 text-amber-400" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center space-x-2 flex-wrap">
+                <span className="text-xs font-bold text-zinc-100">Firebase Firestore</span>
+                <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex items-center space-x-1.5 ${
+                  firebaseStatus === 'connected'
+                    ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-amber-500/15 text-amber-400 border border-amber-500/30'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${firebaseStatus === 'connected' ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+                  <span>{firebaseStatus === 'connected' ? 'เชื่อมต่อฐานข้อมูลคลาวด์เรียลไทม์แล้ว' : 'กำลังเชื่อมต่อคลาวด์...'}</span>
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-400 mt-0.5 truncate">
+                โปรเจกต์: <span className="font-mono text-amber-300/90 font-medium">{firebaseProjectId}</span> • ซิงค์คิวจอง ({bookings.length}), แต้มสะสม ({Object.keys(loyaltyRecords).length}), รายการบัญชี ({transactions.length})
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-1 text-[11px] text-zinc-400 shrink-0 self-start sm:self-center">
+            <Cloud className="w-3.5 h-3.5 text-amber-400/80 shrink-0" />
+            <span className="font-mono text-[10px] bg-zinc-900 px-2 py-1 rounded-lg border border-zinc-800 text-zinc-300">firebase.google.com</span>
+          </div>
+        </div>
+
+        {/* Sub-navigation Tabs (2 cols on mobile/tablet, 4 cols on desktop - clean, no overlap) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-3 border-t border-zinc-800/80">
           <button
             type="button"
             onClick={() => setActiveSubTab('commission')}
-            className={`py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition ${
+            className={`w-full min-w-0 min-h-[44px] py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition cursor-pointer active:scale-95 ${
               activeSubTab === 'commission'
                 ? 'bg-amber-500 text-zinc-950 shadow-md font-bold'
-                : 'bg-zinc-950/60 text-zinc-400 hover:bg-zinc-800'
+                : 'bg-zinc-950/70 hover:bg-zinc-800/80 text-zinc-400 hover:text-zinc-200 border border-zinc-800/80'
             }`}
           >
-            <Percent className="w-3.5 h-3.5" />
-            <span>ค่าคอม % ช่าง</span>
+            <Percent className="w-4 h-4 shrink-0" />
+            <span className="truncate">ค่าคอมมิชชั่น</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveSubTab('barbers')}
-            className={`py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition ${
+            className={`w-full min-w-0 min-h-[44px] py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition cursor-pointer active:scale-95 ${
               activeSubTab === 'barbers'
                 ? 'bg-amber-500 text-zinc-950 shadow-md font-bold'
-                : 'bg-zinc-950/60 text-zinc-400 hover:bg-zinc-800'
+                : 'bg-zinc-950/70 hover:bg-zinc-800/80 text-zinc-400 hover:text-zinc-200 border border-zinc-800/80'
             }`}
           >
-            <Users className="w-3.5 h-3.5" />
-            <span>จัดการช่าง 3 ท่าน</span>
+            <Users className="w-4 h-4 shrink-0" />
+            <span className="truncate">ข้อมูลช่าง 3 ท่าน</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveSubTab('services')}
-            className={`py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition ${
+            className={`w-full min-w-0 min-h-[44px] py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition cursor-pointer active:scale-95 ${
               activeSubTab === 'services'
                 ? 'bg-amber-500 text-zinc-950 shadow-md font-bold'
-                : 'bg-zinc-950/60 text-zinc-400 hover:bg-zinc-800'
+                : 'bg-zinc-950/70 hover:bg-zinc-800/80 text-zinc-400 hover:text-zinc-200 border border-zinc-800/80'
             }`}
           >
-            <Scissors className="w-3.5 h-3.5" />
-            <span>บริการ & ราคา</span>
+            <Scissors className="w-4 h-4 shrink-0" />
+            <span className="truncate">บริการ & ราคา</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveSubTab('shop')}
-            className={`py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-1.5 transition ${
+            className={`w-full min-w-0 min-h-[44px] py-2.5 px-3 rounded-xl text-xs font-semibold flex items-center justify-center space-x-2 transition cursor-pointer active:scale-95 ${
               activeSubTab === 'shop'
                 ? 'bg-amber-500 text-zinc-950 shadow-md font-bold'
-                : 'bg-zinc-950/60 text-zinc-400 hover:bg-zinc-800'
+                : 'bg-zinc-950/70 hover:bg-zinc-800/80 text-zinc-400 hover:text-zinc-200 border border-zinc-800/80'
             }`}
           >
-            <Store className="w-3.5 h-3.5" />
-            <span>ร้านค้า & มัดจำ</span>
+            <Store className="w-4 h-4 shrink-0" />
+            <span className="truncate">ร้านค้า & มัดจำ</span>
           </button>
         </div>
 
@@ -278,43 +319,51 @@ export const AdminSettings: React.FC = () => {
         <div className="space-y-4 animate-fadeIn">
           {/* Revenue & Commission Analytics Overview */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            <div className="p-3.5 bg-zinc-900 border border-zinc-800 rounded-2xl">
-              <span className="text-[11px] text-zinc-400 block mb-1">ยอดขายรวมทั้งหมด</span>
-              <span className="text-lg font-extrabold font-mono text-zinc-100">
-                ฿{totalRevenue.toLocaleString()}
-              </span>
-              <span className="text-[10px] text-zinc-500 block mt-1">จากคิวที่สำเร็จและกำลังตัด</span>
+            <div className="p-3.5 bg-zinc-900 border border-zinc-800 rounded-2xl flex flex-col justify-between min-h-[96px]">
+              <div>
+                <span className="text-[11px] text-zinc-400 block mb-1">ยอดขายรวมทั้งหมด</span>
+                <span className="text-lg font-extrabold font-mono text-zinc-100">
+                  ฿{totalRevenue.toLocaleString()}
+                </span>
+              </div>
+              <span className="text-[10px] text-zinc-500 block mt-1">จากคิวสำเร็จและกำลังตัด</span>
             </div>
 
-            <div className="p-3.5 bg-zinc-900 border border-emerald-500/30 rounded-2xl bg-gradient-to-b from-emerald-950/20 to-zinc-900">
-              <span className="text-[11px] text-emerald-400 font-semibold block mb-1">
-                ยอดจ่ายค่าคอมช่างรวม
-              </span>
-              <span className="text-lg font-extrabold font-mono text-emerald-400">
-                ฿{totalCommissionPaid.toLocaleString()}
-              </span>
+            <div className="p-3.5 bg-zinc-900 border border-emerald-500/30 rounded-2xl bg-gradient-to-b from-emerald-950/20 to-zinc-900 flex flex-col justify-between min-h-[96px]">
+              <div>
+                <span className="text-[11px] text-emerald-400 font-semibold block mb-1">
+                  ยอดจ่ายค่าคอมช่างรวม
+                </span>
+                <span className="text-lg font-extrabold font-mono text-emerald-400">
+                  ฿{totalCommissionPaid.toLocaleString()}
+                </span>
+              </div>
               <span className="text-[10px] text-zinc-400 block mt-1">
                 เฉลี่ย {(totalRevenue > 0 ? (totalCommissionPaid / totalRevenue) * 100 : 60).toFixed(0)}% ของยอดขาย
               </span>
             </div>
 
-            <div className="p-3.5 bg-zinc-900 border border-amber-500/30 rounded-2xl bg-gradient-to-b from-amber-950/20 to-zinc-900">
-              <span className="text-[11px] text-amber-400 font-semibold block mb-1">
-                ส่วนแบ่งกำไรร้านค้า
-              </span>
-              <span className="text-lg font-extrabold font-mono text-amber-400">
-                ฿{totalShopShare.toLocaleString()}
-              </span>
+            <div className="p-3.5 bg-zinc-900 border border-amber-500/30 rounded-2xl bg-gradient-to-b from-amber-950/20 to-zinc-900 flex flex-col justify-between min-h-[96px]">
+              <div>
+                <span className="text-[11px] text-amber-400 font-semibold block mb-1">
+                  ส่วนแบ่งกำไรร้านค้า
+                </span>
+                <span className="text-lg font-extrabold font-mono text-amber-400">
+                  ฿{totalShopShare.toLocaleString()}
+                </span>
+              </div>
               <span className="text-[10px] text-zinc-400 block mt-1">
                 เข้าบัญชีร้านหลังหักคอม
               </span>
             </div>
 
-            <div className="p-3.5 bg-zinc-900 border border-zinc-800 rounded-2xl">
-              <span className="text-[11px] text-zinc-400 block mb-1">เงินมัดจำ 50% สะสม</span>
-              <span className="text-lg font-extrabold font-mono text-blue-400">
-                ฿{totalDepositCollected.toLocaleString()}
-              </span>
+            <div className="p-3.5 bg-zinc-900 border border-zinc-800 rounded-2xl flex flex-col justify-between min-h-[96px]">
+              <div>
+                <span className="text-[11px] text-zinc-400 block mb-1">เงินมัดจำ 50% สะสม</span>
+                <span className="text-lg font-extrabold font-mono text-blue-400">
+                  ฿{totalDepositCollected.toLocaleString()}
+                </span>
+              </div>
               <span className="text-[10px] text-zinc-500 block mt-1">ได้รับผ่าน PromptPay/Card</span>
             </div>
           </div>
@@ -333,7 +382,7 @@ export const AdminSettings: React.FC = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
               {barbers.map((barber) => {
                 const barberBookings = bookings.filter(
                   (b) => b.barberId === barber.id && b.status !== 'CANCELLED'
@@ -345,42 +394,42 @@ export const AdminSettings: React.FC = () => {
                 return (
                   <div
                     key={barber.id}
-                    className="p-4 bg-zinc-950 rounded-2xl border border-zinc-800/90 space-y-3 relative overflow-hidden"
+                    className="p-4 bg-zinc-950 rounded-2xl border border-zinc-800/90 space-y-3.5 relative overflow-hidden flex flex-col justify-between"
                   >
                     {/* Barber Info */}
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-3 min-w-0">
                       <img
                         src={barber.avatarUrl}
                         alt={barber.nickname}
-                        className="w-12 h-12 rounded-2xl object-cover border-2 border-amber-500/40"
+                        className="w-12 h-12 rounded-2xl object-cover border-2 border-amber-500/40 shrink-0"
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-1">
                           <h5 className="font-bold text-sm text-zinc-100 truncate">{barber.name}</h5>
+                          <span className="text-[10px] text-amber-400 font-mono shrink-0 bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+                            โต๊ะ #{barber.chairNumber}
+                          </span>
                         </div>
-                        <p className="text-xs text-zinc-400">{barber.title}</p>
-                        <span className="text-[10px] text-amber-400 font-mono">
-                          Station #{barber.chairNumber}
-                        </span>
+                        <p className="text-xs text-zinc-400 truncate mt-0.5">{barber.title}</p>
                       </div>
                     </div>
 
                     {/* Commission % Slider Controller */}
-                    <div className="pt-2 border-t border-zinc-800/80 space-y-2">
-                      <div className="flex justify-between items-center">
+                    <div className="pt-3 border-t border-zinc-800/80 space-y-2.5">
+                      <div className="flex justify-between items-center flex-wrap gap-1">
                         <span className="text-xs font-semibold text-zinc-300">อัตราค่าคอมช่าง:</span>
-                        <div className="flex items-center space-x-1">
+                        <div className="flex items-center space-x-1.5 shrink-0">
                           <span className="text-base font-extrabold font-mono text-emerald-400">
                             {barber.commissionRate || 60}%
                           </span>
-                          <span className="text-xs text-zinc-500 font-mono">
-                            (ร้าน {(100 - (barber.commissionRate || 60))}%)
+                          <span className="text-xs text-zinc-400 font-mono">
+                            (ร้าน {100 - (barber.commissionRate || 60)}%)
                           </span>
                         </div>
                       </div>
 
                       {/* Slider Input */}
-                      <div className="space-y-1">
+                      <div className="space-y-1.5">
                         <input
                           type="range"
                           min="30"
@@ -390,7 +439,7 @@ export const AdminSettings: React.FC = () => {
                           onChange={(e) => handleCommissionSliderChange(barber.id, Number(e.target.value))}
                           className="w-full accent-amber-500 bg-zinc-800 h-2 rounded-lg cursor-pointer"
                         />
-                        <div className="flex justify-between text-[10px] text-zinc-500 font-mono">
+                        <div className="flex justify-between text-[10px] text-zinc-400 font-mono px-0.5">
                           <span>30%</span>
                           <span>50%</span>
                           <span className="text-amber-400 font-bold">60%</span>
@@ -399,14 +448,14 @@ export const AdminSettings: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Quick Presets */}
-                      <div className="flex space-x-1.5 pt-1">
+                      {/* Quick Presets: 5 equal buttons */}
+                      <div className="grid grid-cols-5 gap-1.5 pt-1">
                         {[50, 55, 60, 65, 70].map((rate) => (
                           <button
                             key={rate}
                             type="button"
                             onClick={() => handleCommissionSliderChange(barber.id, rate)}
-                            className={`flex-1 py-1 rounded-lg text-[10px] font-mono font-bold transition border ${
+                            className={`py-1.5 rounded-lg text-xs font-mono font-bold transition border text-center cursor-pointer active:scale-95 ${
                               barber.commissionRate === rate
                                 ? 'bg-amber-500 text-zinc-950 border-amber-400 shadow'
                                 : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 border-zinc-800'
@@ -419,7 +468,7 @@ export const AdminSettings: React.FC = () => {
                     </div>
 
                     {/* Financial Breakdown for this barber */}
-                    <div className="bg-zinc-900/90 p-2.5 rounded-xl border border-zinc-800/80 text-xs space-y-1.5">
+                    <div className="bg-zinc-900/90 p-3 rounded-xl border border-zinc-800/80 text-xs space-y-1.5">
                       <div className="flex justify-between text-zinc-400 text-[11px]">
                         <span>ยอดผลงานรวม ({barberBookings.length} คิว):</span>
                         <span className="font-mono text-zinc-200">฿{barberRevenue.toLocaleString()}</span>
@@ -493,18 +542,19 @@ export const AdminSettings: React.FC = () => {
                 return (
                   <div
                     key={barber.id}
-                    className={`p-3.5 sm:p-4 rounded-2xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                    className={`p-4 sm:p-5 rounded-2xl border transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
                       isClosed
                         ? 'bg-zinc-950/60 border-zinc-800/80 opacity-80'
                         : 'bg-zinc-950 rounded-2xl border-zinc-800 shadow-sm'
                     }`}
                   >
-                    <div className="flex items-start sm:items-center space-x-3 min-w-0">
+                    {/* Barber Details */}
+                    <div className="flex items-start sm:items-center space-x-3.5 sm:space-x-4 min-w-0 flex-1">
                       <div className="relative shrink-0">
                         <img
                           src={barber.avatarUrl}
                           alt={barber.name}
-                          className={`w-13 h-13 sm:w-14 sm:h-14 rounded-2xl object-cover border-2 transition ${
+                          className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border-2 transition shrink-0 ${
                             isClosed
                               ? 'border-zinc-700 grayscale contrast-75'
                               : 'border-amber-500/50'
@@ -516,38 +566,47 @@ export const AdminSettings: React.FC = () => {
                           </div>
                         )}
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center space-x-1.5 sm:space-x-2 flex-wrap gap-y-1">
-                          <h5 className="font-bold text-sm text-zinc-100">{barber.name}</h5>
-                          <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold border border-amber-500/30 whitespace-nowrap">
+
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h5 className="font-bold text-sm sm:text-base text-zinc-100">{barber.name}</h5>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-300 font-bold border border-amber-500/30 whitespace-nowrap shrink-0">
                             {barber.badge}
                           </span>
                           {isClosed && (
-                            <span className="text-[10px] px-2 py-0.5 rounded bg-rose-500/20 text-rose-400 font-bold border border-rose-500/30 whitespace-nowrap">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30 whitespace-nowrap shrink-0">
                               งดรับคิว
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-zinc-400 mt-0.5">{barber.title}</p>
-                        <div className="flex items-center space-x-2 text-[11px] text-zinc-400 mt-1 flex-wrap gap-y-0.5">
-                          <span className="text-amber-400 font-mono font-medium whitespace-nowrap">เก้าอี้ #{barber.chairNumber}</span>
-                          <span>•</span>
-                          <span className="whitespace-nowrap">เวลา: {barber.workingHours} น.</span>
-                          <span>•</span>
-                          <span className="text-emerald-400 font-mono font-bold whitespace-nowrap">คอมมิชชั่น {barber.commissionRate}%</span>
+
+                        <p className="text-xs text-zinc-400">{barber.title}</p>
+
+                        {/* Metadata Pills (Clean badges, no wrapping dots) */}
+                        <div className="flex items-center gap-1.5 text-[11px] pt-1 flex-wrap">
+                          <span className="bg-zinc-900 px-2 py-0.5 rounded-lg border border-zinc-800 text-amber-400 font-mono font-medium whitespace-nowrap">
+                            โต๊ะ #{barber.chairNumber}
+                          </span>
+                          <span className="bg-zinc-900 px-2 py-0.5 rounded-lg border border-zinc-800 text-zinc-300 whitespace-nowrap">
+                            เวลา {barber.workingHours} น.
+                          </span>
+                          <span className="bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20 text-emerald-400 font-mono font-bold whitespace-nowrap">
+                            ค่าคอมมิชชั่น {barber.commissionRate}%
+                          </span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2 pt-2.5 sm:pt-0 border-t sm:border-t-0 border-zinc-850 justify-end shrink-0">
+                    {/* Actions: On mobile/tablet 2 equal buttons (50% / 50%), on desktop equal flex items */}
+                    <div className="grid grid-cols-2 lg:flex lg:items-center gap-2 pt-3 lg:pt-0 border-t lg:border-t-0 border-zinc-800/80 shrink-0">
                       {/* Edit Barber Profile Button */}
                       <button
                         type="button"
                         onClick={() => setBarberToEdit(barber)}
-                        className="px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition flex items-center space-x-1.5 shadow-sm active:scale-95 cursor-pointer"
+                        className="min-h-[42px] px-3.5 py-2 rounded-xl text-xs font-bold bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition flex items-center justify-center space-x-1.5 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
                         title="คลิกเพื่อแก้ไขข้อมูลช่างทั้งหมด (ชื่อ, รูป, ตำแหน่ง, เก้าอี้, เวลา, ค่าคอม)"
                       >
-                        <Edit2 className="w-3.5 h-3.5 text-amber-400" />
+                        <Edit2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                         <span>แก้ไขข้อมูล</span>
                       </button>
 
@@ -555,7 +614,7 @@ export const AdminSettings: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => toggleBarberActiveStatus(barber.id)}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-bold flex items-center space-x-1.5 transition shadow-sm border cursor-pointer active:scale-95 ${
+                        className={`min-h-[42px] px-3.5 py-2 rounded-xl text-xs font-bold flex items-center justify-center space-x-1.5 transition shadow-sm border cursor-pointer active:scale-95 whitespace-nowrap ${
                           isClosed
                             ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border-rose-500/40'
                             : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40'
@@ -567,7 +626,7 @@ export const AdminSettings: React.FC = () => {
                             isClosed ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'
                           }`}
                         />
-                        <span className="whitespace-nowrap">{isClosed ? '🔴 ปิดรับคิว' : '🟢 เปิดรับคิว'}</span>
+                        <span>{isClosed ? 'เปิดรับคิว' : 'ปิดรับคิว'}</span>
                       </button>
                     </div>
                   </div>
@@ -1029,22 +1088,65 @@ export const AdminSettings: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-zinc-300 block mb-1">เวลาเปิด - ปิดร้าน</label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="text"
-                    value={localSettings.openTime}
-                    onChange={(e) => setLocalSettings({ ...localSettings, openTime: e.target.value })}
-                    className="w-1/2 px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:border-amber-500 outline-none font-mono"
-                  />
-                  <span className="text-zinc-500">-</span>
-                  <input
-                    type="text"
-                    value={localSettings.closeTime}
-                    onChange={(e) => setLocalSettings({ ...localSettings, closeTime: e.target.value })}
-                    className="w-1/2 px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:border-amber-500 outline-none font-mono"
-                  />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold text-zinc-300 flex items-center space-x-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>เวลาเปิด - ปิดร้าน (Shop Operating Hours)</span>
+                  </label>
+                  <span className="text-[11px] font-mono font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                    {localSettings.openTime || '10:00'} - {localSettings.closeTime || '20:30'} น.
+                  </span>
                 </div>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div>
+                    <span className="text-[11px] text-zinc-400 block mb-1">เวลาเปิดร้าน</span>
+                    <input
+                      type="time"
+                      value={localSettings.openTime}
+                      onChange={(e) => setLocalSettings({ ...localSettings, openTime: e.target.value })}
+                      className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:border-amber-500 outline-none font-mono"
+                    />
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-zinc-400 block mb-1">เวลาปิดร้าน</span>
+                    <input
+                      type="time"
+                      value={localSettings.closeTime}
+                      onChange={(e) => setLocalSettings({ ...localSettings, closeTime: e.target.value })}
+                      className="w-full px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-zinc-100 focus:border-amber-500 outline-none font-mono"
+                    />
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                  <span className="text-[10px] text-zinc-500">เลือกเร็ว:</span>
+                  {[
+                    { open: '10:00', close: '20:30', label: '10:00 - 20:30 (ค่าเริ่มต้น)' },
+                    { open: '09:00', close: '21:00', label: '09:00 - 21:00' },
+                    { open: '10:00', close: '22:00', label: '10:00 - 22:00' },
+                    { open: '08:30', close: '20:00', label: '08:30 - 20:00' },
+                  ].map((preset) => (
+                    <button
+                      key={`${preset.open}-${preset.close}`}
+                      type="button"
+                      onClick={() => {
+                        setLocalSettings({ ...localSettings, openTime: preset.open, closeTime: preset.close });
+                        soundFx.playClick();
+                      }}
+                      className={`text-[10px] px-2 py-0.5 rounded-lg border transition font-mono ${
+                        localSettings.openTime === preset.open && localSettings.closeTime === preset.close
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-1.5">
+                  💡 การตั้งค่านี้นำไปแสดงบน <strong>ระบบคิวสดหน้าร้าน (Live Queue)</strong>, หัวเว็บ และคำนวณรอบการจองคิวออนไลน์ทันที
+                </p>
               </div>
 
               <div>
@@ -1073,7 +1175,7 @@ export const AdminSettings: React.FC = () => {
                       </span>
                     </h5>
                     <p className="text-xs text-zinc-400">
-                      ล็อคป้องกันไม่ให้ลูกค้าหรือบุคคลภายนอกเข้าถึงหน้า <strong>"รายรับ-จ่าย"</strong> และ <strong>"หลังบ้าน"</strong>
+                      ล็อคป้องกันไม่ให้ลูกค้าหรือบุคคลภายนอกเข้าถึงข้อมูลหน้า <strong>"3 ช่าง"</strong>, <strong>"รายรับ-จ่าย"</strong> และ <strong>"หลังบ้าน"</strong>
                     </p>
                   </div>
                 </div>
@@ -1114,20 +1216,21 @@ export const AdminSettings: React.FC = () => {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
                     {/* Input Field & Instant Save */}
-                    <div className="bg-zinc-900/90 p-3.5 rounded-2xl border border-zinc-800 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-bold text-zinc-200">
-                          ตั้งรหัส PIN ใหม่ (4 หลัก)
-                        </label>
-                        <span className="text-[11px] text-zinc-400">
-                          รหัสปัจจุบัน: <strong className="font-mono text-amber-400">{shopSettings.adminPin || '8888'}</strong>
-                        </span>
-                      </div>
+                    <div className="bg-zinc-900/90 p-4 sm:p-5 rounded-2xl border border-zinc-800 flex flex-col justify-between space-y-4 h-full">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <label className="text-xs font-bold text-zinc-200 flex items-center space-x-1.5">
+                            <Lock className="w-3.5 h-3.5 text-amber-400" />
+                            <span>ตั้งรหัส PIN ใหม่ (4 หลัก)</span>
+                          </label>
+                          <span className="text-[11px] text-zinc-400 bg-zinc-950 px-2.5 py-0.5 rounded-lg border border-zinc-800">
+                            รหัสปัจจุบัน: <strong className="font-mono text-amber-400">{shopSettings.adminPin || '8888'}</strong>
+                          </span>
+                        </div>
 
-                      <div className="flex items-center space-x-2">
-                        <div className="relative flex-1">
+                        <div className="relative">
                           <input
                             type={showPinCode ? 'text' : 'password'}
                             maxLength={4}
@@ -1139,94 +1242,255 @@ export const AdminSettings: React.FC = () => {
                               setPinErrorMsg(null);
                               setPinSaveMsg(null);
                             }}
-                            className="w-full px-3.5 py-2.5 bg-zinc-950 border border-zinc-700 focus:border-amber-500 rounded-xl text-base text-zinc-100 outline-none font-mono tracking-widest font-bold"
+                            className="w-full px-4 py-2.5 pr-10 bg-zinc-950 border border-zinc-700 focus:border-amber-500 rounded-xl text-base text-zinc-100 outline-none font-mono tracking-widest font-bold text-center"
                           />
                           <button
                             type="button"
                             onClick={() => setShowPinCode(!showPinCode)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200 p-1"
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-200 p-1 cursor-pointer"
                             title={showPinCode ? 'ซ่อนรหัส' : 'แสดงรหัส'}
                           >
                             {showPinCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
                         </div>
 
-                        {/* Save PIN Button */}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (pinInput.length !== 4) {
-                              soundFx.playNotification();
-                              setPinErrorMsg('กรุณากรอกรหัส PIN ให้ครบ 4 หลัก (เฉพาะตัวเลข 0-9)');
-                              return;
-                            }
-                            updateAdminPin(pinInput);
-                            setLocalSettings((prev) => ({ ...prev, adminPin: pinInput }));
-                            setPinSaveMsg(`✅ บันทึกรหัส PIN ใหม่ (${pinInput}) เรียบร้อยแล้ว!`);
-                            setPinErrorMsg(null);
-                            setTimeout(() => setPinSaveMsg(null), 4000);
-                          }}
-                          className="px-4 py-2.5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-zinc-950 font-bold text-xs rounded-xl transition shadow-md shadow-amber-500/20 flex items-center space-x-1.5 shrink-0"
-                        >
-                          <Save className="w-4 h-4" />
-                          <span>บันทึกรหัส PIN</span>
-                        </button>
-                      </div>
-
-                      {/* Quick helpers */}
-                      <div className="flex items-center justify-between text-[11px] pt-1">
-                        <span className="text-zinc-400">
-                          {pinInput.length}/4 หลัก
-                        </span>
-                        <div className="flex items-center space-x-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setPinInput('8888');
-                              updateAdminPin('8888');
-                              setLocalSettings((prev) => ({ ...prev, adminPin: '8888' }));
-                              setPinSaveMsg('✅ รีเซ็ตกลับเป็นรหัสเริ่มต้น (8888) แล้ว');
-                              setTimeout(() => setPinSaveMsg(null), 3000);
-                            }}
-                            className="text-amber-400 hover:text-amber-300 underline"
-                          >
-                            ใช้รหัส 8888 (ค่าเริ่มต้น)
-                          </button>
-                          <span className="text-zinc-600">|</span>
-                          <button
-                            type="button"
-                            onClick={() => setPinInput('')}
-                            className="text-zinc-400 hover:text-zinc-200 underline"
-                          >
-                            ล้างค่า
-                          </button>
+                        {/* Quick helpers */}
+                        <div className="flex items-center justify-between text-[11px] px-0.5">
+                          <span className="text-zinc-400 font-mono">
+                            {pinInput.length}/4 หลัก
+                          </span>
+                          <div className="flex items-center space-x-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPinInput('8888');
+                                updateAdminPin('8888');
+                                setLocalSettings((prev) => ({ ...prev, adminPin: '8888' }));
+                                setPinSaveMsg('✅ รีเซ็ตกลับเป็นรหัสเริ่มต้น (8888) แล้ว');
+                                setTimeout(() => setPinSaveMsg(null), 3000);
+                              }}
+                              className="text-amber-400 hover:text-amber-300 underline cursor-pointer"
+                            >
+                              ใช้รหัส 8888 (ค่าเริ่มต้น)
+                            </button>
+                            <span className="text-zinc-700">|</span>
+                            <button
+                              type="button"
+                              onClick={() => setPinInput('')}
+                              className="text-zinc-400 hover:text-zinc-200 underline cursor-pointer"
+                            >
+                              ล้างค่า
+                            </button>
+                          </div>
                         </div>
                       </div>
+
+                      {/* Full-width Save PIN Button */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (pinInput.length !== 4) {
+                            soundFx.playNotification();
+                            setPinErrorMsg('กรุณากรอกรหัส PIN ให้ครบ 4 หลัก (เฉพาะตัวเลข 0-9)');
+                            return;
+                          }
+                          updateAdminPin(pinInput);
+                          setLocalSettings((prev) => ({ ...prev, adminPin: pinInput }));
+                          setPinSaveMsg(`✅ บันทึกรหัส PIN ใหม่ (${pinInput}) เรียบร้อยแล้ว!`);
+                          setPinErrorMsg(null);
+                          setTimeout(() => setPinSaveMsg(null), 4000);
+                        }}
+                        className="w-full min-h-[42px] py-2.5 px-4 bg-amber-500 hover:bg-amber-400 active:scale-[0.98] text-zinc-950 font-bold text-xs rounded-xl transition shadow-md shadow-amber-500/20 flex items-center justify-center space-x-1.5 cursor-pointer shrink-0"
+                      >
+                        <Save className="w-4 h-4 shrink-0" />
+                        <span>บันทึกรหัส PIN</span>
+                      </button>
                     </div>
 
                     {/* Security Instruction Info */}
-                    <div className="flex flex-col justify-center space-y-1.5 text-xs text-zinc-300 bg-zinc-900/60 p-4 rounded-2xl border border-zinc-800/80">
-                      <div className="flex items-center space-x-1.5 font-bold text-amber-400 text-xs">
-                        <ShieldCheck className="w-4 h-4" />
-                        <span>คำแนะนำความปลอดภัย</span>
+                    <div className="bg-zinc-900/60 p-4 sm:p-5 rounded-2xl border border-zinc-800/80 flex flex-col justify-between space-y-4 h-full">
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-1.5 font-bold text-amber-400 text-xs">
+                          <ShieldCheck className="w-4 h-4 text-amber-400" />
+                          <span>คำแนะนำความปลอดภัย</span>
+                        </div>
+                        <p className="text-[11px] text-zinc-400 leading-relaxed">
+                          เมื่อตั้งรหัส PIN แล้ว ระบบจะขอรหัสผ่านทุกครั้งก่อนเปิดเมนู <strong>"รายรับ-จ่าย"</strong> และ <strong>"หลังบ้าน"</strong> เพื่อป้องกันข้อมูลสำคัญของร้าน
+                        </p>
                       </div>
-                      <p className="text-[11px] text-zinc-400 leading-relaxed">
-                        เมื่อตั้งรหัส PIN แล้ว ระบบจะขอรหัสผ่านทุกครั้งก่อนเปิดเมนู <strong>"รายรับ-จ่าย"</strong> และ <strong>"หลังบ้าน"</strong> เพื่อป้องกันข้อมูลสำคัญของร้าน
-                      </p>
-                      <div className="pt-1 flex items-center space-x-2">
+
+                      <div className="pt-1">
                         <button
                           type="button"
                           onClick={() => {
                             lockAdmin();
                             setActiveTab('book');
                           }}
-                          className="text-[11px] px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 font-semibold transition flex items-center space-x-1"
+                          className="w-full min-h-[42px] py-2.5 px-4 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 font-bold text-xs transition flex items-center justify-center space-x-1.5 cursor-pointer active:scale-[0.98]"
                         >
-                          <Lock className="w-3 h-3" />
+                          <Lock className="w-4 h-4 shrink-0" />
                           <span>ทดสอบล็อคระบบทันที</span>
                         </button>
                       </div>
                     </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Advance Queue Notification Settings Card (แจ้งเตือนคิวล่วงหน้า) */}
+            <div className="mt-4 p-4 sm:p-5 rounded-2xl bg-zinc-950 border border-amber-500/40 space-y-4 shadow-lg shadow-black/40">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                    <Bell className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-sm text-zinc-100 flex items-center space-x-2">
+                      <span>แจ้งเตือนคิวล่วงหน้า (Advance Queue Notification)</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-mono font-bold border border-amber-500/30">
+                        {localSettings.advanceNotificationMinutes ?? 15} นาที
+                      </span>
+                    </h5>
+                    <p className="text-xs text-zinc-400">
+                      ส่งการแจ้งเตือนแบบ <strong>Pop-up</strong> หรือ <strong>Toast</strong> เมื่อถึงคิวลูกค้าที่จองไว้ภายในเวลาที่กำหนด
+                    </p>
+                  </div>
+                </div>
+
+                {/* Toggle Enable / Disable */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextState = localSettings.advanceNotificationEnabled === false ? true : false;
+                    setLocalSettings((prev) => ({ ...prev, advanceNotificationEnabled: nextState }));
+                    updateShopSettings({ advanceNotificationEnabled: nextState });
+                    soundFx.playClick();
+                  }}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 border shrink-0 cursor-pointer ${
+                    localSettings.advanceNotificationEnabled !== false
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 hover:bg-amber-500/30'
+                      : 'bg-zinc-900 text-zinc-400 border-zinc-700 hover:bg-zinc-800'
+                  }`}
+                >
+                  <Bell className="w-4 h-4" />
+                  <span>{localSettings.advanceNotificationEnabled !== false ? '🟢 เปิดใช้งานแจ้งเตือน' : '⚪ ปิดการแจ้งเตือน'}</span>
+                </button>
+              </div>
+
+              {localSettings.advanceNotificationEnabled !== false && (
+                <div className="space-y-4 pt-3 border-t border-zinc-800/80">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* Time setting */}
+                    <div className="bg-zinc-900/60 p-4 rounded-2xl border border-zinc-800 space-y-3">
+                      <label className="text-xs font-bold text-zinc-200 flex items-center space-x-1.5">
+                        <Clock className="w-3.5 h-3.5 text-amber-400" />
+                        <span>แจ้งเตือนก่อนถึงเวลานัดหมาย</span>
+                      </label>
+
+                      {/* Quick preset chips */}
+                      <div className="flex flex-wrap gap-2">
+                        {[10, 15, 20, 30].map((mins) => {
+                          const isSelected = (localSettings.advanceNotificationMinutes ?? 15) === mins;
+                          return (
+                            <button
+                              key={mins}
+                              type="button"
+                              onClick={() => {
+                                setLocalSettings((prev) => ({ ...prev, advanceNotificationMinutes: mins }));
+                                soundFx.playClick();
+                              }}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer border ${
+                                isSelected
+                                  ? 'bg-amber-500 text-zinc-950 font-bold border-amber-400 shadow-sm'
+                                  : 'bg-zinc-950 text-zinc-400 border-zinc-800 hover:text-zinc-200 hover:border-zinc-700'
+                              }`}
+                            >
+                              {mins} นาที {mins === 15 && '(แนะนำ)'}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <p className="text-[11px] text-zinc-400">
+                        ระบบจะคำนวณและแจ้งเตือนเมื่อเวลาปัจจุบันเหลืออีก <strong>{localSettings.advanceNotificationMinutes ?? 15} นาที</strong> ก่อนถึงเวลาเริ่มให้บริการ
+                      </p>
+                    </div>
+
+                    {/* Display Type Setting */}
+                    <div className="bg-zinc-900/60 p-4 rounded-2xl border border-zinc-800 space-y-3">
+                      <label className="text-xs font-bold text-zinc-200 flex items-center space-x-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                        <span>รูปแบบการแจ้งเตือน (Display Type)</span>
+                      </label>
+
+                      <div className="space-y-2">
+                        {[
+                          { id: 'both', title: 'ทั้งสองแบบ (Pop-up + Toast)', desc: 'แสดงหน้าต่าง Pop-up และแถบลอย (แนะนำ)' },
+                          { id: 'popup', title: 'เฉพาะ Pop-up กลางจอ', desc: 'หน้าต่างแจ้งเตือนแสดงรายละเอียดคิวครบถ้วน' },
+                          { id: 'toast', title: 'เฉพาะ Toast แถบลอยมุมบน', desc: 'แถบเตือนกะทัดรัด ไม่บังหน้าจอหลัก' },
+                        ].map((opt) => {
+                          const currentType = localSettings.advanceNotificationType || 'both';
+                          const isSelected = currentType === opt.id;
+                          return (
+                            <div
+                              key={opt.id}
+                              onClick={() => {
+                                setLocalSettings((prev) => ({
+                                  ...prev,
+                                  advanceNotificationType: opt.id as 'toast' | 'popup' | 'both',
+                                }));
+                                soundFx.playClick();
+                              }}
+                              className={`p-2.5 rounded-xl border transition cursor-pointer flex items-center justify-between ${
+                                isSelected
+                                  ? 'bg-amber-500/10 border-amber-500/50 text-zinc-100'
+                                  : 'bg-zinc-950/60 border-zinc-800/80 text-zinc-400 hover:border-zinc-700'
+                              }`}
+                            >
+                              <div>
+                                <span className="text-xs font-bold block">{opt.title}</span>
+                                <span className="text-[11px] text-zinc-400">{opt.desc}</span>
+                              </div>
+                              <div
+                                className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                                  isSelected ? 'border-amber-400 bg-amber-400' : 'border-zinc-600'
+                                }`}
+                              >
+                                {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-zinc-950" />}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sound & Instant Test Trigger */}
+                  <div className="p-3.5 rounded-xl bg-zinc-900/80 border border-zinc-800 flex flex-col sm:flex-row items-center justify-between gap-3">
+                    <label className="flex items-center space-x-2 cursor-pointer text-xs font-medium text-zinc-300">
+                      <input
+                        type="checkbox"
+                        checked={localSettings.advanceNotificationSound !== false}
+                        onChange={(e) =>
+                          setLocalSettings((prev) => ({ ...prev, advanceNotificationSound: e.target.checked }))
+                        }
+                        className="w-4 h-4 rounded text-amber-500 accent-amber-500 bg-zinc-950 border-zinc-700 focus:ring-amber-500"
+                      />
+                      <Volume2 className="w-4 h-4 text-amber-400" />
+                      <span>เปิดเสียงแจ้งเตือนกระดิ่ง (Dual-tone Chime)</span>
+                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerAdvanceQueueAlert(undefined, localSettings.advanceNotificationMinutes || 15);
+                      }}
+                      className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 active:scale-95 text-zinc-950 font-bold text-xs rounded-xl transition shadow-md shadow-amber-500/20 flex items-center space-x-1.5 cursor-pointer shrink-0"
+                    >
+                      <Bell className="w-3.5 h-3.5" />
+                      <span>ทดสอบส่งการแจ้งเตือนทันที (15 นาที)</span>
+                    </button>
                   </div>
                 </div>
               )}

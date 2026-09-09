@@ -5,14 +5,18 @@ class SoundManager {
   public soundEnabled: boolean = true;
 
   private initCtx() {
-    if (!this.ctx && typeof window !== 'undefined') {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      if (AudioCtx) {
-        this.ctx = new AudioCtx();
+    try {
+      if (!this.ctx && typeof window !== 'undefined') {
+        const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+        if (AudioCtx) {
+          this.ctx = new AudioCtx();
+        }
       }
-    }
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
+      if (this.ctx && this.ctx.state === 'suspended') {
+        this.ctx.resume().catch(() => {});
+      }
+    } catch {
+      // Audio context might be restricted before user gesture
     }
   }
 
@@ -126,6 +130,43 @@ class SoundManager {
 
       osc.start(now);
       osc.stop(now + 0.25);
+    } catch {
+      // Silent catch
+    }
+  }
+
+  public playQueueAlert() {
+    if (!this.soundEnabled) return;
+    try {
+      this.initCtx();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      // Dual-tone melodic chime: G5 -> C6 (urgent yet polite announcement)
+      const notes = [
+        { freq: 783.99, time: 0 },
+        { freq: 1046.5, time: 0.14 },
+      ];
+
+      notes.forEach(({ freq, time }) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const start = now + time;
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, start);
+
+        gain.gain.setValueAtTime(0, start);
+        gain.gain.linearRampToValueAtTime(0.24, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.38);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(start);
+        osc.stop(start + 0.38);
+      });
     } catch {
       // Silent catch
     }

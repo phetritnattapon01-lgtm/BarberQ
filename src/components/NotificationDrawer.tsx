@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, CheckCheck, Bell, Sparkles, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useBooking } from '../context/BookingContext';
 
@@ -9,6 +9,18 @@ interface NotificationDrawerProps {
 
 export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, onClose }) => {
   const { notifications, markNotificationAsRead, markAllNotificationsAsRead, setActiveTab, setActiveBookingId } = useBooking();
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -22,8 +34,18 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end animate-fadeIn">
-      <div className="w-full max-w-md bg-zinc-950 border-l border-zinc-800 h-full flex flex-col shadow-2xl">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end animate-fadeIn cursor-pointer"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="cursor-default w-full max-w-md bg-zinc-950 border-l border-zinc-800 h-full flex flex-col shadow-2xl"
+      >
         {/* Drawer Header */}
         <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/60">
           <div className="flex items-center space-x-2">
@@ -40,7 +62,7 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
               <button
                 type="button"
                 onClick={markAllNotificationsAsRead}
-                className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center space-x-1 px-2 py-1 bg-zinc-800 rounded-lg transition"
+                className="text-[11px] text-amber-400 hover:text-amber-300 flex items-center space-x-1 px-2.5 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition cursor-pointer active:scale-95"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
                 <span>อ่านทั้งหมด</span>
@@ -48,8 +70,13 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
             )}
             <button
               type="button"
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              className="w-9 h-9 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 flex items-center justify-center transition cursor-pointer z-10"
+              title="ปิด"
+              aria-label="ปิด"
             >
               <X className="w-5 h-5" />
             </button>

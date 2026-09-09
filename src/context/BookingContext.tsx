@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import {
   Booking,
   BookingStatus,
@@ -14,12 +14,38 @@ import {
   TransactionType,
   TransactionCategory,
   CreateWalkInParams,
+  CustomerLoyalty,
+  LoyaltyHistoryItem,
 } from '../types';
 import { BARBERS } from '../data/barbers';
 import { SERVICES } from '../data/services';
 import { INITIAL_TRANSACTIONS } from '../data/transactions';
+import {
+  INITIAL_LOYALTY_CUSTOMERS,
+  normalizePhone,
+  formatPhone,
+} from '../data/loyalty';
 import { soundFx } from '../utils/audio';
 import confetti from 'canvas-confetti';
+import {
+  subscribeToBookings,
+  saveBookingToFirestore,
+  deleteBookingFromFirestore,
+  seedInitialBookings,
+  subscribeToShopSettings,
+  saveShopSettingsToFirestore,
+  subscribeToLoyaltyRecords,
+  saveLoyaltyRecordToFirestore,
+  seedInitialLoyalty,
+  subscribeToTransactions,
+  saveTransactionToFirestore,
+  deleteTransactionFromFirestore,
+  seedInitialTransactions,
+  subscribeToBarbers,
+  saveBarberToFirestore,
+  seedInitialBarbers,
+} from '../services/firestoreService';
+import firebaseConfig from '../../firebase-applet-config.json';
 
 export const DEFAULT_SHOP_SETTINGS: ShopSettings = {
   shopName: 'BarberQ Hair Studio',
@@ -37,6 +63,17 @@ export const DEFAULT_SHOP_SETTINGS: ShopSettings = {
   currencySymbol: '฿',
   adminPin: '8888',
   pinLockEnabled: true,
+  advanceNotificationEnabled: true,
+  advanceNotificationMinutes: 15,
+  advanceNotificationType: 'both',
+  advanceNotificationSound: true,
+
+  // Loyalty Program Settings (สะสมแต้ม)
+  loyaltyEnabled: true,
+  loyaltyPointsPerCut: 1,
+  loyaltyPointsRequired: 10,
+  loyaltyRewardDiscount: 150,
+  loyaltyRewardTitle: 'ส่วนลดพิเศษ ฿150 (ครบ 10 แต้ม)',
 };
 
 interface BookingContextType {
@@ -62,12 +99,26 @@ interface BookingContextType {
   discountCode: string;
   discountAmount: number;
 
+  // Loyalty Program (ระบบสะสมแต้ม)
+  loyaltyRecords: Record<string, CustomerLoyalty>;
+  isRedeemingLoyalty: boolean;
+  setIsRedeemingLoyalty: (redeem: boolean) => void;
+  getCustomerLoyalty: (phone: string, customerName?: string) => CustomerLoyalty;
+  awardLoyaltyPoints: (phone: string, points: number, description: string, bookingId?: string) => void;
+  redeemLoyaltyReward: (phone: string, customerName?: string, bookingId?: string) => boolean;
+  updateLoyaltyPointsManual: (phone: string, newPoints: number, note: string) => void;
+
   // PIN / Passcode Security State
   isAdminUnlocked: boolean;
   unlockAdminWithPin: (pin: string) => boolean;
   lockAdmin: () => void;
   updateAdminPin: (newPin: string) => void;
   togglePinLock: (enabled: boolean) => void;
+
+  // Advance Queue Notification Alert State & Actions (แจ้งเตือนคิวล่วงหน้า 15 นาที)
+  advanceAlertData: { booking: Booking; minutesLeft: number } | null;
+  dismissAdvanceAlert: () => void;
+  triggerAdvanceQueueAlert: (booking?: Booking, minutesLeft?: number) => void;
 
   // Actions
   setActiveTab: (tab: ActiveTab) => void;
@@ -86,6 +137,7 @@ interface BookingContextType {
   createWalkInBooking: (params: CreateWalkInParams) => Booking;
   updateBookingStatus: (bookingId: string, newStatus: BookingStatus, customNote?: string) => void;
   cancelBooking: (bookingId: string) => void;
+  deleteBooking: (bookingId: string) => void;
   markNotificationAsRead: (notificationId: string) => void;
   markAllNotificationsAsRead: () => void;
   setActiveBookingId: (bookingId: string) => void;
@@ -106,6 +158,8 @@ interface BookingContextType {
   deleteService: (serviceId: string) => void;
   updateShopSettings: (settings: Partial<ShopSettings>) => void;
   resetAllSettings: () => void;
+  firebaseStatus: 'connecting' | 'connected' | 'offline';
+  firebaseProjectId: string;
 }
 
 const STORAGE_KEY_BOOKINGS = 'barberq_bookings_v3';
@@ -114,6 +168,7 @@ const STORAGE_KEY_BARBERS = 'barberq_barbers_v3';
 const STORAGE_KEY_SERVICES = 'barberq_services_v3';
 const STORAGE_KEY_SETTINGS = 'barberq_settings_v3';
 const STORAGE_KEY_TRANSACTIONS = 'barberq_transactions_v3';
+const STORAGE_KEY_LOYALTY = 'barberq_loyalty_v3';
 
 const initialSampleBookings: Booking[] = [
   {
@@ -215,7 +270,14 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [barbers, setBarbers] = useState<Barber[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_BARBERS);
-      return saved ? JSON.parse(saved) : BARBERS;
+      if (!saved) return BARBERS;
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || parsed.length === 0) return BARBERS;
+      // Merge with default BARBERS to ensure all barbers have correct ID and details
+      return BARBERS.map((defaultB) => {
+        const found = parsed.find((p: Barber) => p.id === defaultB.id);
+        return found ? { ...defaultB, ...found } : defaultB;
+      });
     } catch {
       return BARBERS;
     }
@@ -225,7 +287,10 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [services, setServices] = useState<Service[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_SERVICES);
-      return saved ? JSON.parse(saved) : SERVICES;
+      if (!saved) return SERVICES;
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || parsed.length === 0) return SERVICES;
+      return parsed;
     } catch {
       return SERVICES;
     }
@@ -235,7 +300,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [shopSettings, setShopSettings] = useState<ShopSettings>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_SETTINGS);
-      return saved ? JSON.parse(saved) : DEFAULT_SHOP_SETTINGS;
+      return saved ? { ...DEFAULT_SHOP_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SHOP_SETTINGS;
     } catch {
       return DEFAULT_SHOP_SETTINGS;
     }
@@ -245,7 +310,55 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [bookings, setBookings] = useState<Booking[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_BOOKINGS);
-      return saved ? JSON.parse(saved) : initialSampleBookings;
+      if (!saved) return initialSampleBookings;
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed) || parsed.length === 0) return initialSampleBookings;
+
+      // Ensure every booking has valid barber, service, and timing fields
+      return parsed.map((b: Partial<Booking>, index: number): Booking => {
+        const matchingBarber =
+          BARBERS.find((br) => br.id === b.barberId) ||
+          BARBERS[index % BARBERS.length] ||
+          BARBERS[0];
+        const matchingService =
+          SERVICES.find((s) => s.id === b.service?.id) || SERVICES[0];
+
+        const totalServicePrice = b.totalServicePrice ?? matchingService.price ?? 400;
+        const discountAmount = b.discountAmount ?? 0;
+        const finalTotalPrice = b.finalTotalPrice ?? Math.max(0, totalServicePrice - discountAmount);
+
+        return {
+          id: b.id || `bk-${Date.now()}-${index}`,
+          queueNumber: b.queueNumber || `BQ-${String(index + 1).padStart(3, '0')}`,
+          customerName: b.customerName || 'ลูกค้าทั่วไป',
+          customerPhone: b.customerPhone || '08x-xxx-xxxx',
+          customerNotes: b.customerNotes || '',
+          barberId: matchingBarber.id,
+          barber: b.barber && b.barber.name ? { ...matchingBarber, ...b.barber } : matchingBarber,
+          service: b.service && b.service.name ? { ...matchingService, ...b.service } : matchingService,
+          bookingDate: b.bookingDate || new Date().toISOString().split('T')[0],
+          bookingTimeSlot: b.bookingTimeSlot || '11:00',
+          durationMinutes: b.durationMinutes || matchingService.durationMinutes || 45,
+          totalServicePrice,
+          discountAmount,
+          finalTotalPrice,
+          paymentOption: b.paymentOption || 'deposit_50',
+          amountPaid: b.amountPaid ?? 0,
+          amountRemaining: b.amountRemaining ?? finalTotalPrice,
+          paymentMethod: b.paymentMethod || 'promptpay',
+          paymentRefNumber: b.paymentRefNumber || `REF-${Date.now()}`,
+          paidAt: b.paidAt || `${b.bookingDate || '2026-09-02'} 11:00`,
+          status: b.status || 'CONFIRMED',
+          statusUpdatedAt: b.statusUpdatedAt || '11:00',
+          commissionRate: b.commissionRate ?? matchingBarber.commissionRate ?? 60,
+          barberCommissionEarned: b.barberCommissionEarned ?? 0,
+          shopRevenueShare: b.shopRevenueShare ?? 0,
+          isWalkIn: b.isWalkIn ?? false,
+          timeline: Array.isArray(b.timeline) && b.timeline.length > 0
+            ? b.timeline
+            : [{ status: 'CONFIRMED', label: 'สร้างคิวเรียบร้อย', timestamp: '11:00' }],
+        };
+      });
     } catch {
       return initialSampleBookings;
     }
@@ -316,14 +429,18 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const updateAdminPin = (newPin: string) => {
     if (newPin.length === 4) {
-      setShopSettings((prev) => ({ ...prev, adminPin: newPin }));
+      const updated = { ...shopSettings, adminPin: newPin };
+      setShopSettings(updated);
+      saveShopSettingsToFirestore(updated).catch(console.error);
       soundFx.playSuccess();
       addNotification('🔑 เปลี่ยนรหัส PIN สำเร็จ', `รหัส PIN ใหม่ 4 หลักได้รับการบันทึกแล้ว`, 'success');
     }
   };
 
   const togglePinLock = (enabled: boolean) => {
-    setShopSettings((prev) => ({ ...prev, pinLockEnabled: enabled }));
+    const updated = { ...shopSettings, pinLockEnabled: enabled };
+    setShopSettings(updated);
+    saveShopSettingsToFirestore(updated).catch(console.error);
     soundFx.playSuccess();
     addNotification(
       enabled ? '🔒 เปิดใช้งานรหัสล็อคความปลอดภัย' : '🔓 ปิดใช้งานรหัสล็อคความปลอดภัย',
@@ -394,6 +511,106 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
   }, [notifications]);
 
+  // Loyalty Program State & Persistence (ระบบสะสมแต้ม)
+  const [loyaltyRecords, setLoyaltyRecords] = useState<Record<string, CustomerLoyalty>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_LOYALTY);
+      if (!saved) return INITIAL_LOYALTY_CUSTOMERS;
+      const parsed = JSON.parse(saved);
+      return typeof parsed === 'object' && parsed !== null ? { ...INITIAL_LOYALTY_CUSTOMERS, ...parsed } : INITIAL_LOYALTY_CUSTOMERS;
+    } catch {
+      return INITIAL_LOYALTY_CUSTOMERS;
+    }
+  });
+
+  const [isRedeemingLoyalty, setIsRedeemingLoyalty] = useState<boolean>(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY_LOYALTY, JSON.stringify(loyaltyRecords));
+    } catch {
+      // Ignored
+    }
+  }, [loyaltyRecords]);
+
+  // Firebase Cloud Database (barberq-5995d) Real-time Sync & Status
+  const [firebaseStatus, setFirebaseStatus] = useState<'connecting' | 'connected' | 'offline'>('connecting');
+  const firebaseProjectId = firebaseConfig.projectId || 'barberq-5995d';
+
+  // Seed initial records to Firestore on startup & listen to real-time changes
+  useEffect(() => {
+    let isMounted = true;
+
+    // Seed Firestore if database is fresh
+    seedInitialBookings(initialSampleBookings);
+    seedInitialLoyalty(INITIAL_LOYALTY_CUSTOMERS);
+    seedInitialTransactions(INITIAL_TRANSACTIONS);
+    seedInitialBarbers(BARBERS);
+
+    // 1. Subscribe to Bookings
+    const unsubBookings = subscribeToBookings(
+      (remoteBookings) => {
+        if (!isMounted) return;
+        setFirebaseStatus('connected');
+        if (remoteBookings && remoteBookings.length > 0) {
+          setBookings(remoteBookings);
+        }
+      },
+      () => {
+        if (isMounted) setFirebaseStatus('offline');
+      }
+    );
+
+    // 2. Subscribe to Shop Settings
+    const unsubSettings = subscribeToShopSettings(
+      (remoteSettings) => {
+        if (!isMounted) return;
+        if (remoteSettings && Object.keys(remoteSettings).length > 0) {
+          setShopSettings((prev) => ({ ...prev, ...remoteSettings }));
+        }
+      }
+    );
+
+    // 3. Subscribe to Loyalty Points
+    const unsubLoyalty = subscribeToLoyaltyRecords(
+      (remoteLoyalty) => {
+        if (!isMounted) return;
+        if (remoteLoyalty && Object.keys(remoteLoyalty).length > 0) {
+          setLoyaltyRecords((prev) => ({ ...prev, ...remoteLoyalty }));
+        }
+      }
+    );
+
+    // 4. Subscribe to Transactions
+    const unsubTransactions = subscribeToTransactions(
+      (remoteTxs) => {
+        if (!isMounted) return;
+        if (remoteTxs && remoteTxs.length > 0) {
+          setTransactions(remoteTxs);
+        }
+      }
+    );
+
+    // 5. Subscribe to Barbers
+    const unsubBarbers = subscribeToBarbers(
+      (remoteBarbers) => {
+        if (!isMounted) return;
+        if (remoteBarbers && remoteBarbers.length > 0) {
+          setBarbers(remoteBarbers);
+        }
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      unsubBookings();
+      unsubSettings();
+      unsubLoyalty();
+      unsubTransactions();
+      unsubBarbers();
+    };
+  }, []);
+
   const setSoundEnabled = (enabled: boolean) => {
     setSoundEnabledState(enabled);
     soundFx.soundEnabled = enabled;
@@ -421,6 +638,79 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
     soundFx.playNotification();
   };
 
+  // Advance Queue Notification Alert State & Actions (แจ้งเตือนคิวล่วงหน้า 15 นาที)
+  const [advanceAlertData, setAdvanceAlertData] = useState<{ booking: Booking; minutesLeft: number } | null>(null);
+  const notifiedAdvanceIdsRef = useRef<Set<string>>(new Set());
+
+  const dismissAdvanceAlert = () => {
+    setAdvanceAlertData(null);
+  };
+
+  const triggerAdvanceQueueAlert = (customBooking?: Booking, customMinutesLeft?: number) => {
+    const target =
+      customBooking ||
+      bookings.find(
+        (b) =>
+          b.status === 'CONFIRMED' ||
+          b.status === 'BARBER_PREPARING'
+      ) ||
+      bookings[0];
+
+    if (!target) return;
+
+    const minutesLeft = customMinutesLeft ?? shopSettings.advanceNotificationMinutes ?? 15;
+    setAdvanceAlertData({ booking: target, minutesLeft });
+
+    if (soundEnabled && shopSettings.advanceNotificationSound !== false) {
+      soundFx.playQueueAlert();
+    }
+
+    addNotification(
+      `⏳ คิว ${target.queueNumber} ใกล้ถึงเวลาใน ${minutesLeft} นาที!`,
+      `คุณ${target.customerName} มีนัดหมายบริการ ${target.service.name} กับ${target.barber.name} (${target.barber.nickname}) เวลา ${target.bookingTimeSlot} น.`,
+      'warning',
+      target.id
+    );
+  };
+
+  // Background check for advance queue notifications (Every 10 seconds)
+  useEffect(() => {
+    if (shopSettings.advanceNotificationEnabled === false) return;
+
+    const checkAdvanceQueues = () => {
+      const now = new Date();
+      const currentHours = now.getHours();
+      const currentMinutes = now.getMinutes();
+      const currentTotalMinutes = currentHours * 60 + currentMinutes;
+      const targetWindowMinutes = shopSettings.advanceNotificationMinutes ?? 15;
+
+      const activeUpcoming = bookings.filter(
+        (b) =>
+          (b.status === 'CONFIRMED' || b.status === 'BARBER_PREPARING') &&
+          !notifiedAdvanceIdsRef.current.has(b.id)
+      );
+
+      for (const booking of activeUpcoming) {
+        if (!booking.bookingTimeSlot) continue;
+        const [slotH, slotM] = booking.bookingTimeSlot.split(':').map(Number);
+        if (isNaN(slotH) || isNaN(slotM)) continue;
+
+        const slotTotalMinutes = slotH * 60 + slotM;
+        const diffMinutes = slotTotalMinutes - currentTotalMinutes;
+
+        // If within advance window (e.g. 1 to 15 minutes)
+        if (diffMinutes > 0 && diffMinutes <= targetWindowMinutes) {
+          notifiedAdvanceIdsRef.current.add(booking.id);
+          triggerAdvanceQueueAlert(booking, diffMinutes);
+          break; // alert one at a time
+        }
+      }
+    };
+
+    const interval = setInterval(checkAdvanceQueues, 10000);
+    return () => clearInterval(interval);
+  }, [bookings, shopSettings.advanceNotificationEnabled, shopSettings.advanceNotificationMinutes, soundEnabled, shopSettings.advanceNotificationSound]);
+
   const applyDiscountCode = (code: string) => {
     const clean = code.trim().toUpperCase();
     if (clean === 'BARBER50' || clean === 'NEWCUSTOMER' || clean === 'VIP50') {
@@ -432,11 +722,200 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
     return false;
   };
 
+  // Loyalty Program Core Helpers (ระบบสะสมแต้ม 1 ครั้ง = 1 แต้ม, ครบ 10 แต้ม = ส่วนลด ฿150)
+  const getCustomerLoyalty = (phone: string, custName?: string): CustomerLoyalty => {
+    const key = normalizePhone(phone);
+    if (!key) {
+      return {
+        phone: '',
+        displayPhone: phone,
+        customerName: custName || 'ลูกค้าทั่วไป',
+        points: 0,
+        lifetimePoints: 0,
+        totalVisits: 0,
+        redeemedRewardsCount: 0,
+        history: [],
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
+    const existing = loyaltyRecords[key];
+    if (existing) {
+      if (custName && custName !== 'ลูกค้าทั่วไป' && existing.customerName !== custName) {
+        return { ...existing, customerName: custName };
+      }
+      return existing;
+    }
+
+    return {
+      phone: key,
+      displayPhone: formatPhone(phone),
+      customerName: custName || 'ลูกค้าทั่วไป',
+      points: 0,
+      lifetimePoints: 0,
+      totalVisits: 0,
+      redeemedRewardsCount: 0,
+      history: [],
+      updatedAt: new Date().toISOString(),
+    };
+  };
+
+  const awardLoyaltyPoints = (
+    phone: string,
+    pointsToAward: number,
+    description: string,
+    bookingId?: string
+  ) => {
+    const key = normalizePhone(phone);
+    if (!key) return;
+
+    setLoyaltyRecords((prev) => {
+      const current = prev[key] || {
+        phone: key,
+        displayPhone: formatPhone(phone),
+        customerName: 'ลูกค้าประจำ',
+        points: 0,
+        lifetimePoints: 0,
+        totalVisits: 0,
+        redeemedRewardsCount: 0,
+        history: [],
+        updatedAt: new Date().toISOString(),
+      };
+
+      const nowStr = new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+      const newHistoryItem = {
+        id: `lh-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        date: nowStr,
+        type: 'earn' as const,
+        points: pointsToAward,
+        description,
+        bookingId,
+      };
+
+      const updatedRecord: CustomerLoyalty = {
+        ...current,
+        points: current.points + pointsToAward,
+        lifetimePoints: current.lifetimePoints + pointsToAward,
+        totalVisits: current.totalVisits + 1,
+        history: [...current.history, newHistoryItem],
+        updatedAt: nowStr,
+      };
+
+      saveLoyaltyRecordToFirestore(key, updatedRecord).catch(console.error);
+
+      return {
+        ...prev,
+        [key]: updatedRecord,
+      };
+    });
+  };
+
+  const redeemLoyaltyReward = (
+    phone: string,
+    custName?: string,
+    bookingId?: string
+  ): boolean => {
+    const key = normalizePhone(phone);
+    if (!key) return false;
+
+    const current = loyaltyRecords[key];
+    const pointsReq = shopSettings.loyaltyPointsRequired || 10;
+    if (!current || current.points < pointsReq) return false;
+
+    setLoyaltyRecords((prev) => {
+      const target = prev[key] || current;
+      const nowStr = new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+      const newHistoryItem = {
+        id: `lh-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        date: nowStr,
+        type: 'redeem' as const,
+        points: -pointsReq,
+        description: `ใช้ ${pointsReq} แต้ม แลกรับ${shopSettings.loyaltyRewardTitle || 'ส่วนลดพิเศษ ฿150'}`,
+        bookingId,
+      };
+
+      const updatedRecord: CustomerLoyalty = {
+        ...target,
+        customerName: custName || target.customerName,
+        points: target.points - pointsReq,
+        redeemedRewardsCount: (target.redeemedRewardsCount || 0) + 1,
+        history: [...target.history, newHistoryItem],
+        updatedAt: nowStr,
+      };
+
+      saveLoyaltyRecordToFirestore(key, updatedRecord).catch(console.error);
+
+      return {
+        ...prev,
+        [key]: updatedRecord,
+      };
+    });
+    return true;
+  };
+
+  const updateLoyaltyPointsManual = (
+    phone: string,
+    newPoints: number,
+    note: string
+  ) => {
+    const key = normalizePhone(phone);
+    if (!key) return;
+
+    setLoyaltyRecords((prev) => {
+      const current = prev[key] || {
+        phone: key,
+        displayPhone: formatPhone(phone),
+        customerName: 'ลูกค้าประจำ',
+        points: 0,
+        lifetimePoints: 0,
+        totalVisits: 0,
+        redeemedRewardsCount: 0,
+        history: [],
+        updatedAt: new Date().toISOString(),
+      };
+
+      const diff = newPoints - current.points;
+      const nowStr = new Date().toLocaleDateString('th-TH') + ' ' + new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+      const actionType: 'bonus' | 'adjustment' = diff >= 0 ? 'bonus' : 'adjustment';
+      const newHistoryItem: LoyaltyHistoryItem = {
+        id: `lh-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+        date: nowStr,
+        type: actionType,
+        points: diff,
+        description: note || `ปรับแก้แต้มโดยผู้จัดการร้าน (${newPoints} แต้ม)`,
+      };
+
+      const updatedRecord: CustomerLoyalty = {
+        ...current,
+        points: Math.max(0, newPoints),
+        lifetimePoints: diff > 0 ? current.lifetimePoints + diff : current.lifetimePoints,
+        history: [...current.history, newHistoryItem],
+        updatedAt: nowStr,
+      };
+
+      saveLoyaltyRecordToFirestore(key, updatedRecord).catch(console.error);
+
+      return {
+        ...prev,
+        [key]: updatedRecord,
+      };
+    });
+  };
+
   const createBookingAndPay = (): Booking => {
     const barber = barbers.find((b) => b.id === selectedBarberId) || barbers[0];
     const service = selectedService || services[0];
     const totalPrice = service.price;
-    const finalPrice = Math.max(0, totalPrice - discountAmount);
+
+    // Loyalty points deduction check
+    const pointsReq = shopSettings.loyaltyPointsRequired || 10;
+    const loyaltyDiscountVal = shopSettings.loyaltyRewardDiscount || 150;
+    const currentCustLoyalty = getCustomerLoyalty(customerPhone, customerName);
+    const canApplyLoyalty = isRedeemingLoyalty && currentCustLoyalty.points >= pointsReq;
+    const effectiveLoyaltyDiscount = canApplyLoyalty ? loyaltyDiscountVal : 0;
+
+    const totalDiscount = discountAmount + effectiveLoyaltyDiscount;
+    const finalPrice = Math.max(0, totalPrice - totalDiscount);
 
     const isNoDeposit = paymentOption === 'no_deposit';
     const isDeposit = paymentOption === 'deposit_50';
@@ -472,7 +951,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
       bookingTimeSlot: selectedTimeSlot,
       durationMinutes: service.durationMinutes,
       totalServicePrice: totalPrice,
-      discountAmount,
+      discountAmount: totalDiscount,
       finalTotalPrice: finalPrice,
       paymentOption,
       amountPaid,
@@ -485,6 +964,9 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
       commissionRate: commRate,
       barberCommissionEarned,
       shopRevenueShare,
+      loyaltyPointsEarned: 0,
+      loyaltyPointsRedeemed: canApplyLoyalty ? pointsReq : 0,
+      isLoyaltyRewardApplied: canApplyLoyalty,
       timeline: [
         {
           status: 'CONFIRMED',
@@ -494,7 +976,9 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
             ? `ชำระมัดจำ ${depositPct}% ล่วงหน้าสำเร็จ (฿${amountPaid.toLocaleString()})`
             : `ชำระเต็มจำนวน 100% เรียบร้อย (฿${amountPaid.toLocaleString()})`,
           timestamp: nowTime,
-          note: isNoDeposit
+          note: canApplyLoyalty
+            ? `🎉 ใช้สิทธิ์สะสมครบ ${pointsReq} แต้ม รับส่วนลดพิเศษ ฿${loyaltyDiscountVal}`
+            : isNoDeposit
             ? `ชำระหน้าร้านเต็มจำนวนเมื่อตัดเสร็จ: ฿${amountRemaining.toLocaleString()}`
             : isDeposit
             ? `ยอดคงเหลือชำระหน้าร้าน: ฿${amountRemaining.toLocaleString()}`
@@ -503,8 +987,15 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
       ],
     };
 
+    // If loyalty reward was applied, redeem the 10 points now
+    if (canApplyLoyalty) {
+      redeemLoyaltyReward(customerPhone, customerName, bookingId);
+      setIsRedeemingLoyalty(false);
+    }
+
     setBookings((prev) => [newBooking, ...prev]);
     setActiveBookingIdState(bookingId);
+    saveBookingToFirestore(newBooking).catch(console.error);
 
     // Auto-record Income Transaction if upfront payment was made
     if (amountPaid > 0) {
@@ -526,6 +1017,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
         createdAt: new Date().toISOString(),
       };
       setTransactions((prev) => [autoIncomeTx, ...prev]);
+      saveTransactionToFirestore(autoIncomeTx).catch(console.error);
     }
     
     // Confetti effect
@@ -632,6 +1124,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
 
     setBookings((prev) => [newBooking, ...prev]);
     setActiveBookingIdState(bookingId);
+    saveBookingToFirestore(newBooking).catch(console.error);
 
     // If paid immediately at counter, record income transaction
     if (amountPaid > 0) {
@@ -653,6 +1146,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
         createdAt: new Date().toISOString(),
       };
       setTransactions((prev) => [autoIncomeTx, ...prev]);
+      saveTransactionToFirestore(autoIncomeTx).catch(console.error);
     }
 
     try {
@@ -712,12 +1206,14 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
             timestamp: nowTime,
           },
         ];
-        return {
+        const updatedBooking: Booking = {
           ...b,
           status: newStatus,
           statusUpdatedAt: `${b.bookingDate} ${nowTime}`,
           timeline: updatedTimeline,
         };
+        saveBookingToFirestore(updatedBooking).catch(console.error);
+        return updatedBooking;
       })
     );
 
@@ -774,6 +1270,45 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
 
         if (newTxList.length > 0) {
           setTransactions((prev) => [...newTxList, ...prev]);
+          newTxList.forEach((tx) => saveTransactionToFirestore(tx).catch(console.error));
+        }
+
+        // 3. Award Loyalty Points (ทุกการตัดผม 1 ครั้ง = 1 แต้ม)
+        if (!target.loyaltyPointsEarned) {
+          const ptsPerCut = shopSettings.loyaltyPointsPerCut || 1;
+          awardLoyaltyPoints(
+            target.customerPhone,
+            ptsPerCut,
+            `สะสม ${ptsPerCut} แต้มจากการตัดผมคิว ${target.queueNumber} (${target.service.name})`,
+            target.id
+          );
+
+          // Update booking loyaltyPointsEarned
+          setBookings((prev) =>
+            prev.map((item) =>
+              item.id === target.id ? { ...item, loyaltyPointsEarned: ptsPerCut } : item
+            )
+          );
+
+          // Confetti celebration
+          try {
+            confetti({
+              particleCount: 60,
+              spread: 60,
+              origin: { y: 0.65 },
+              colors: ['#f59e0b', '#10b981', '#fbbf24', '#ffffff'],
+            });
+          } catch {
+            // Ignored
+          }
+
+          soundFx.playSuccess();
+          addNotification(
+            `⭐ คุณ ${target.customerName} ได้รับ +${ptsPerCut} แต้มสะสม!`,
+            `สะสมแต้มสำเร็จจากการตัดผมคิว ${target.queueNumber} (ครบ 10 แต้มรับส่วนลดพิเศษ ฿${shopSettings.loyaltyRewardDiscount || 150})`,
+            'success',
+            bookingId
+          );
         }
       }
 
@@ -794,6 +1329,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
       createdAt: new Date().toISOString(),
     };
     setTransactions((prev) => [newTx, ...prev]);
+    saveTransactionToFirestore(newTx).catch(console.error);
     soundFx.playSuccess();
     addNotification(
       `💵 บันทึก${txData.type === 'income' ? 'รายรับ' : 'รายจ่าย'}สำเร็จ`,
@@ -804,12 +1340,20 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const deleteTransaction = (id: string) => {
     setTransactions((prev) => prev.filter((t) => t.id !== id));
+    deleteTransactionFromFirestore(id).catch(console.error);
     soundFx.playNotification();
   };
 
   const updateTransaction = (id: string, updates: Partial<TransactionItem>) => {
     setTransactions((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, ...updates } : t))
+      prev.map((t) => {
+        if (t.id === id) {
+          const updated = { ...t, ...updates };
+          saveTransactionToFirestore(updated).catch(console.error);
+          return updated;
+        }
+        return t;
+      })
     );
     soundFx.playSuccess();
   };
@@ -821,6 +1365,12 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const cancelBooking = (bookingId: string) => {
     updateBookingStatus(bookingId, 'CANCELLED', 'ลูกค้ายกเลิกการจองคิว');
+    soundFx.playNotification();
+  };
+
+  const deleteBooking = (bookingId: string) => {
+    setBookings((prev) => prev.filter((b) => b.id !== bookingId));
+    deleteBookingFromFirestore(bookingId).catch(console.error);
     soundFx.playNotification();
   };
 
@@ -854,7 +1404,14 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
   // Admin & Settings Methods
   const updateBarberCommissionRate = (barberId: BarberId, newRate: number) => {
     setBarbers((prev) =>
-      prev.map((barber) => (barber.id === barberId ? { ...barber, commissionRate: newRate } : barber))
+      prev.map((barber) => {
+        if (barber.id === barberId) {
+          const updated = { ...barber, commissionRate: newRate };
+          saveBarberToFirestore(updated).catch(console.error);
+          return updated;
+        }
+        return barber;
+      })
     );
     // Also update future calculations in bookings if needed or add alert
     soundFx.playSuccess();
@@ -867,7 +1424,14 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const updateBarberProfile = (barberId: BarberId, updates: Partial<Barber>) => {
     setBarbers((prev) =>
-      prev.map((b) => (b.id === barberId ? { ...b, ...updates } : b))
+      prev.map((b) => {
+        if (b.id === barberId) {
+          const updated = { ...b, ...updates };
+          saveBarberToFirestore(updated).catch(console.error);
+          return updated;
+        }
+        return b;
+      })
     );
     soundFx.playSuccess();
   };
@@ -877,7 +1441,14 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
     const newStatus = current?.isActive === false ? true : false;
 
     setBarbers((prev) =>
-      prev.map((b) => (b.id === barberId ? { ...b, isActive: newStatus } : b))
+      prev.map((b) => {
+        if (b.id === barberId) {
+          const updated = { ...b, isActive: newStatus };
+          saveBarberToFirestore(updated).catch(console.error);
+          return updated;
+        }
+        return b;
+      })
     );
 
     // If current barber in booking form is closed, switch to first available active barber
@@ -920,7 +1491,9 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
   };
 
   const updateShopSettings = (settingsUpdates: Partial<ShopSettings>) => {
-    setShopSettings((prev) => ({ ...prev, ...settingsUpdates }));
+    const updated = { ...shopSettings, ...settingsUpdates };
+    setShopSettings(updated);
+    saveShopSettingsToFirestore(updated).catch(console.error);
     soundFx.playSuccess();
     addNotification(
       '💾 บันทึกการตั้งค่าร้านค้าสำเร็จ',
@@ -961,11 +1534,21 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
         paymentMethod,
         discountCode,
         discountAmount,
+        loyaltyRecords,
+        isRedeemingLoyalty,
+        setIsRedeemingLoyalty,
+        getCustomerLoyalty,
+        awardLoyaltyPoints,
+        redeemLoyaltyReward,
+        updateLoyaltyPointsManual,
         isAdminUnlocked,
         unlockAdminWithPin,
         lockAdmin,
         updateAdminPin,
         togglePinLock,
+        advanceAlertData,
+        dismissAdvanceAlert,
+        triggerAdvanceQueueAlert,
         setActiveTab,
         setSelectedBarberId,
         setSelectedService,
@@ -982,6 +1565,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
         createWalkInBooking,
         updateBookingStatus,
         cancelBooking,
+        deleteBooking,
         markNotificationAsRead,
         markAllNotificationsAsRead,
         setActiveBookingId,
@@ -998,6 +1582,8 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
         deleteService,
         updateShopSettings,
         resetAllSettings,
+        firebaseStatus,
+        firebaseProjectId,
       }}
     >
       {children}

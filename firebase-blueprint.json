@@ -1,0 +1,69 @@
+{
+  "entities": {
+    "Booking": {
+      "title": "Booking",
+      "description": "Barbershop queue booking record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "queueNumber": { "type": "string" },
+        "customerName": { "type": "string" },
+        "phone": { "type": "string" },
+        "barberId": { "type": "string" },
+        "serviceIds": { "type": "array", "items": { "type": "string" } },
+        "bookingDate": { "type": "string" },
+        "timeSlot": { "type": "string" },
+        "status": { "type": "string" },
+        "finalTotalPrice": { "type": "number" },
+        "depositAmount": { "type": "number" },
+        "remainingBalance": { "type": "number" },
+        "isPaidDeposit": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "queueNumber", "customerName", "phone", "barberId", "status"]
+    },
+    "ShopSettings": {
+      "title": "ShopSettings",
+      "description": "Store configuration and operational parameters",
+      "type": "object",
+      "properties": {
+        "shopName": { "type": "string" },
+        "phone": { "type": "string" },
+        "openTime": { "type": "string" },
+        "closeTime": { "type": "string" },
+        "adminPin": { "type": "string" },
+        "pinLockEnabled": { "type": "boolean" }
+      }
+    },
+    "CustomerLoyalty": {
+      "title": "CustomerLoyalty",
+      "description": "Customer loyalty reward points and history",
+      "type": "object",
+      "properties": {
+        "phone": { "type": "string" },
+        "customerName": { "type": "string" },
+        "points": { "type": "number" },
+        "lifetimePoints": { "type": "number" },
+        "redeemedRewardsCount": { "type": "number" }
+      },
+      "required": ["phone", "points"]
+    },
+    "TransactionItem": {
+      "title": "TransactionItem",
+      "description": "Income and expense accounting entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "date": { "type": "string" },
+        "type": { "type": "string" },
+        "category": { "type": "string" },
+        "amount": { "type": "number" },
+        "description": { "type": "string" }
+      },
+      "required": ["id", "date", "type", "amount"]
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}

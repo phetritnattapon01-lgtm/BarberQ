@@ -82,8 +82,8 @@ export const BookingStepWizard: React.FC = () => {
         <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3 sm:p-3.5 shadow-md">
           {/* Mobile step info banner */}
           <div className="flex items-center justify-between mb-2 sm:hidden text-xs">
-            <span className="text-zinc-400 text-[11px] font-medium">ขั้นตอน {step}/5</span>
-            <span className="text-amber-400 text-xs font-bold bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/20">
+            <span className="text-zinc-400 text-xs font-medium">ขั้นตอน {step}/5</span>
+            <span className="text-amber-400 text-xs font-bold bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
               {stepsHeader[step - 1]?.label}
             </span>
           </div>
@@ -104,11 +104,11 @@ export const BookingStepWizard: React.FC = () => {
                       ? 'text-amber-400 font-bold'
                       : isDone
                       ? 'text-emerald-400 hover:text-emerald-300'
-                      : 'text-zinc-600'
+                      : 'text-zinc-500'
                   }`}
                 >
                   <div
-                    className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-mono mb-1 transition-all ${
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold mb-1 transition-all ${
                       isCurrent
                         ? 'bg-amber-500 text-zinc-950 font-black ring-4 ring-amber-500/20 scale-105 shadow-md shadow-amber-500/30'
                         : isDone
@@ -118,7 +118,7 @@ export const BookingStepWizard: React.FC = () => {
                   >
                     {isDone ? '✓' : s.num}
                   </div>
-                  <span className="text-[10px] hidden sm:block truncate max-w-[70px] text-center">
+                  <span className="text-xs hidden sm:block text-center leading-normal truncate max-w-[85px]">
                     {s.label}
                   </span>
                 </div>
@@ -267,29 +267,29 @@ export const BookingStepWizard: React.FC = () => {
                     />
                     <div>
                       <h4 className="font-bold text-sm text-zinc-100">{barber.name} ({barber.nickname})</h4>
-                      <p className="text-xs text-zinc-400">{service.name} • {service.durationMinutes} นาที</p>
-                      <span className="text-[11px] text-amber-400 font-mono">
+                      <p className="text-xs text-zinc-400 mt-0.5">{service.name} • {service.durationMinutes} นาที</p>
+                      <span className="text-xs text-amber-400 font-medium mt-0.5 block">
                         วันที่ {selectedDate} เวลา {selectedTimeSlot} น.
                       </span>
                     </div>
                   </div>
 
-                  <div className="pt-2 border-t border-zinc-800/80 grid grid-cols-2 gap-2 text-xs">
+                  <div className="pt-3 border-t border-zinc-800/80 grid grid-cols-2 gap-3 text-xs">
                     <div>
-                      <span className="text-zinc-500 block text-[10px]">ผู้รับบริการ:</span>
-                      <span className="font-semibold text-zinc-200">{customerName || 'ลูกค้าทั่วไป'}</span>
+                      <span className="text-zinc-500 block text-xs mb-0.5">ผู้รับบริการ:</span>
+                      <span className="font-semibold text-zinc-200 text-sm">{customerName || 'ลูกค้าทั่วไป'}</span>
                     </div>
                     <div>
-                      <span className="text-zinc-500 block text-[10px]">เบอร์ติดต่อ:</span>
-                      <span className="font-semibold font-mono text-zinc-200">{customerPhone || '-'}</span>
+                      <span className="text-zinc-500 block text-xs mb-0.5">เบอร์ติดต่อ:</span>
+                      <span className="font-semibold text-zinc-200 text-sm tabular-nums">{customerPhone || '-'}</span>
                     </div>
                     <div>
-                      <span className="text-zinc-500 block text-[10px]">ยอดชำระออนไลน์ตอนนี้:</span>
-                      <span className="font-bold text-emerald-400 font-mono">฿0 (จองฟรี)</span>
+                      <span className="text-zinc-500 block text-xs mb-0.5">ยอดชำระออนไลน์ตอนนี้:</span>
+                      <span className="font-bold text-emerald-400 text-sm tabular-nums">฿0 (จองฟรี)</span>
                     </div>
                     <div>
-                      <span className="text-zinc-500 block text-[10px]">ยอดชำระหน้าร้านเมื่อตัดเสร็จ:</span>
-                      <span className="font-bold text-amber-400 font-mono">฿{finalPrice.toLocaleString()}</span>
+                      <span className="text-zinc-500 block text-xs mb-0.5">ยอดชำระหน้าร้านเมื่อตัดเสร็จ:</span>
+                      <span className="font-bold text-amber-400 text-sm tabular-nums">฿{finalPrice.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>
@@ -298,7 +298,7 @@ export const BookingStepWizard: React.FC = () => {
                   <p className="font-bold flex items-center space-x-1">
                     <span>💡 คำแนะนำก่อนเข้ารับบริการ:</span>
                   </p>
-                  <p className="text-[11px] text-zinc-300">
+                  <p className="text-xs text-zinc-300 leading-relaxed">
                     กรุณาเดินทางมาถึงหน้าร้านก่อนเวลานัดหมาย 5-10 นาที เพื่อให้ช่างสามารถเริ่มตัดผมได้ตามเวลาที่ท่านจองไว้
                   </p>
                 </div>
@@ -385,12 +385,12 @@ export const BookingStepWizard: React.FC = () => {
               {/* Ticket Top Strip */}
               <div className="bg-gradient-to-r from-amber-500 to-yellow-500 p-4 text-zinc-950 flex justify-between items-center">
                 <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider block opacity-80">
+                  <span className="text-xs font-bold uppercase tracking-wider block opacity-85">
                     BARBERQ DIGITAL QUEUE PASS
                   </span>
                   <h4 className="font-extrabold text-base">บัตรคิวตัดผมออนไลน์</h4>
                 </div>
-                <div className="bg-zinc-950 text-amber-400 px-3 py-1 rounded-xl text-xs font-mono font-bold">
+                <div className="bg-zinc-950 text-amber-400 px-3 py-1.5 rounded-xl text-xs font-semibold tabular-nums">
                   {createdBooking.bookingTimeSlot} น.
                 </div>
               </div>
@@ -405,18 +405,18 @@ export const BookingStepWizard: React.FC = () => {
                   />
                   <div>
                     <h5 className="font-bold text-sm text-zinc-100">{createdBooking.barber.nickname}</h5>
-                    <p className="text-xs text-zinc-400">{createdBooking.service.name}</p>
-                    <span className="text-[11px] text-amber-400 font-medium">
+                    <p className="text-xs text-zinc-400 mt-0.5">{createdBooking.service.name}</p>
+                    <span className="text-xs text-amber-400 font-medium mt-0.5 block">
                       Station #{createdBooking.barber.chairNumber} • {createdBooking.bookingDate}
                     </span>
                   </div>
                 </div>
 
                 {/* Pricing summary in ticket */}
-                <div className="grid grid-cols-2 gap-3 text-xs bg-zinc-950/70 p-3 rounded-2xl border border-zinc-800">
+                <div className="grid grid-cols-2 gap-3 text-xs bg-zinc-950/70 p-3.5 rounded-2xl border border-zinc-800">
                   <div>
-                    <span className="text-zinc-500 block text-[10px]">รูปแบบการชำระ</span>
-                    <span className="font-bold text-zinc-200">
+                    <span className="text-zinc-500 block text-xs mb-0.5">รูปแบบการชำระ</span>
+                    <span className="font-bold text-zinc-200 text-sm">
                       {createdBooking.paymentOption === 'no_deposit'
                         ? 'ไม่มีมัดจำ (จ่ายหน้าร้าน)'
                         : createdBooking.paymentOption === 'deposit_50'
@@ -425,20 +425,20 @@ export const BookingStepWizard: React.FC = () => {
                     </span>
                   </div>
                   <div>
-                    <span className="text-zinc-500 block text-[10px]">ยอดที่ชำระไปแล้ว</span>
-                    <span className="font-bold font-mono text-emerald-400">
+                    <span className="text-zinc-500 block text-xs mb-0.5">ยอดที่ชำระไปแล้ว</span>
+                    <span className="font-bold text-emerald-400 text-sm tabular-nums">
                       ฿{createdBooking.amountPaid.toLocaleString()}
                     </span>
                   </div>
                   <div>
-                    <span className="text-zinc-500 block text-[10px]">ยอดคงเหลือหน้าร้าน</span>
-                    <span className="font-bold font-mono text-amber-400">
+                    <span className="text-zinc-500 block text-xs mb-0.5">ยอดคงเหลือหน้าร้าน</span>
+                    <span className="font-bold text-amber-400 text-sm tabular-nums">
                       ฿{createdBooking.amountRemaining.toLocaleString()}
                     </span>
                   </div>
                   <div>
-                    <span className="text-zinc-500 block text-[10px]">ช่องทางชำระ</span>
-                    <span className="font-semibold text-zinc-300 uppercase">
+                    <span className="text-zinc-500 block text-xs mb-0.5">ช่องทางชำระ</span>
+                    <span className="font-semibold text-zinc-300 uppercase text-sm">
                       {createdBooking.paymentOption === 'no_deposit'
                         ? 'ชำระที่หน้าร้าน'
                         : createdBooking.paymentMethod === 'promptpay'
@@ -449,12 +449,12 @@ export const BookingStepWizard: React.FC = () => {
                 </div>
 
                 {/* QR Check-in Box */}
-                <div className="text-center p-3 bg-white rounded-2xl text-zinc-950">
+                <div className="text-center p-4 bg-white rounded-2xl text-zinc-950">
                   <div className="w-32 h-32 mx-auto bg-zinc-950 p-2 rounded-xl flex items-center justify-center">
                     <QrCode className="w-28 h-28 text-white" />
                   </div>
-                  <p className="text-xs font-bold mt-2">สแกนเพื่อเช็คอินที่หน้าร้าน</p>
-                  <p className="text-[10px] text-zinc-600 font-mono">Ref: {createdBooking.paymentRefNumber}</p>
+                  <p className="text-xs font-bold mt-2.5">สแกนเพื่อเช็คอินที่หน้าร้าน</p>
+                  <p className="text-xs text-zinc-600 tabular-nums mt-0.5">Ref: {createdBooking.paymentRefNumber}</p>
                 </div>
               </div>
 

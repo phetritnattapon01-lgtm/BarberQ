@@ -21,6 +21,7 @@ import {
 import { useBooking } from '../context/BookingContext';
 import { BarberId, Booking, CreateWalkInParams, PaymentMethodType } from '../types';
 import { soundFx } from '../utils/audio';
+import { formatBarberDisplayName } from '../data/barbers';
 
 interface WalkInModalProps {
   isOpen: boolean;
@@ -42,18 +43,26 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
     setActiveBookingId,
   } = useBooking();
 
-  const getInitialBarberId = (): BarberId => {
-    if (defaultBarberId && defaultBarberId !== 'auto') {
-      return defaultBarberId;
+  // Barbers who are currently active and in the shop (ช่างเท่าที่มี)
+  const availableBarbers = barbers.filter((b) => b.isActive !== false);
+
+  const getInitialBarberId = (): BarberId | 'auto' => {
+    if (defaultBarberId) {
+      if (defaultBarberId === 'auto') return 'auto';
+      const b = barbers.find((x) => x.id === defaultBarberId);
+      if (b && b.isActive !== false) return defaultBarberId;
     }
-    const firstActive = barbers.find((b) => b.isActive !== false);
-    return firstActive?.id || barbers[0]?.id || 'b1';
+    // If multiple active barbers exist, default to auto-distribution across available barbers
+    if (availableBarbers.length > 1) {
+      return 'auto';
+    }
+    return availableBarbers[0]?.id || barbers[0]?.id || 'barber-top';
   };
 
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerNotes, setCustomerNotes] = useState('');
-  const [selectedBarberId, setSelectedBarberId] = useState<BarberId>(getInitialBarberId());
+  const [selectedBarberId, setSelectedBarberId] = useState<BarberId | 'auto'>(getInitialBarberId());
   const [selectedServiceId, setSelectedServiceId] = useState<string>(services[0]?.id || 'srv-1');
   const [paymentTiming, setPaymentTiming] = useState<'pay_later' | 'pay_now'>('pay_later');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('cash');
@@ -63,20 +72,43 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      if (defaultBarberId && defaultBarberId !== 'auto') {
-        setSelectedBarberId(defaultBarberId);
+      if (defaultBarberId) {
+        if (defaultBarberId === 'auto') {
+          setSelectedBarberId('auto');
+        } else {
+          const b = barbers.find((x) => x.id === defaultBarberId);
+          setSelectedBarberId(b && b.isActive !== false ? defaultBarberId : (availableBarbers[0]?.id || 'auto'));
+        }
       } else {
-        const firstActive = barbers.find((b) => b.isActive !== false);
-        setSelectedBarberId(firstActive?.id || barbers[0]?.id || 'b1');
+        setSelectedBarberId(availableBarbers.length > 1 ? 'auto' : (availableBarbers[0]?.id || 'barber-top'));
       }
       setBarberError(null);
     }
   }, [isOpen, defaultBarberId, barbers]);
 
+  const handleCloseModal = () => {
+    setCreatedWalkIn(null);
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerNotes('');
+    setBarberError(null);
+    onClose();
+  };
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleCloseModal();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen]);
+
   // Quick preset name tags
   const namePresets = ['ลูกค้า Walk-in', 'ลูกค้าหน้าร้าน', 'ลูกค้าประจำ', 'เด็กนักเรียน', 'คุณลูกค้า VIP'];
-
-  if (!isOpen) return null;
 
   // Calculate waiting count for each barber
   const getBarberQueueStats = (barberId: BarberId) => {
@@ -91,6 +123,22 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
     return { count, estMinutes };
   };
 
+  // Find candidate barber with lowest queue among available barbers (ช่างเท่าที่มี)
+  const autoAssignedBarber = (() => {
+    const candidates = availableBarbers.length > 0 ? availableBarbers : barbers;
+    const counts = candidates.map((b) => {
+      const queueCount = bookings.filter(
+        (bk) =>
+          bk.barberId === b.id &&
+          bk.status !== 'COMPLETED' &&
+          bk.status !== 'CANCELLED'
+      ).length;
+      return { barber: b, count: queueCount };
+    });
+    counts.sort((a, b) => a.count - b.count);
+    return counts[0]?.barber;
+  })();
+
   const handleCreateWalkIn = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -100,11 +148,19 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
       return;
     }
 
-    const chosenBarber = barbers.find((b) => b.id === selectedBarberId);
-    if (chosenBarber?.isActive === false) {
-      setBarberError(`ช่าง${chosenBarber.nickname} งดรับคิวในขณะนี้ กรุณาเลือกช่างท่านอื่น`);
-      soundFx.playError();
-      return;
+    if (selectedBarberId === 'auto') {
+      if (availableBarbers.length === 0) {
+        setBarberError('ขณะนี้ไม่มีช่างเปิดรับคิว กรุณาเปิดสถานะช่างก่อนออกบัตรคิว');
+        soundFx.playError();
+        return;
+      }
+    } else {
+      const chosenBarber = barbers.find((b) => b.id === selectedBarberId);
+      if (chosenBarber?.isActive === false) {
+        setBarberError(`${formatBarberDisplayName(chosenBarber.nickname)} งดรับคิวในขณะนี้ กรุณาเลือกช่างเท่าที่มี`);
+        soundFx.playError();
+        return;
+      }
     }
 
     const params: CreateWalkInParams = {
@@ -125,7 +181,11 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
     setIsPrinting(true);
     soundFx.playClick();
     setTimeout(() => {
-      window.print();
+      try {
+        window.print();
+      } catch {
+        // Safe fallback in sandboxed iframes
+      }
       setIsPrinting(false);
     }, 200);
   };
@@ -135,8 +195,7 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
     setCustomerName('');
     setCustomerPhone('');
     setCustomerNotes('');
-    const firstActive = barbers.find((b) => b.isActive !== false);
-    setSelectedBarberId(firstActive?.id || barbers[0]?.id || 'b1');
+    setSelectedBarberId(availableBarbers.length > 1 ? 'auto' : (availableBarbers[0]?.id || 'barber-top'));
     setBarberError(null);
     setPaymentTiming('pay_later');
     soundFx.playClick();
@@ -151,11 +210,25 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
   };
 
   const selectedServiceObj = services.find((s) => s.id === selectedServiceId) || services[0];
-  const selectedBarberObj = barbers.find((b) => b.id === selectedBarberId);
+  const selectedBarberObj = selectedBarberId === 'auto' 
+    ? autoAssignedBarber 
+    : barbers.find((b) => b.id === selectedBarberId);
+
+  if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto animate-fadeIn">
-      <div className="relative w-full max-w-lg bg-zinc-900 border border-zinc-700/80 rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          handleCloseModal();
+        }
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto animate-fadeIn cursor-pointer"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="cursor-default relative w-full max-w-lg bg-zinc-900 border border-zinc-700/80 rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col"
+      >
         {/* Modal Header */}
         <div className="p-4 sm:p-5 border-b border-zinc-800 bg-zinc-950/90 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
@@ -176,8 +249,13 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCloseModal();
+            }}
+            className="w-10 h-10 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 flex items-center justify-center transition cursor-pointer shrink-0 z-10"
+            title="ปิดหน้าต่าง"
+            aria-label="ปิด"
           >
             <X className="w-5 h-5" />
           </button>
@@ -316,99 +394,162 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
               </div>
             )}
 
-            {/* Section 1: Mandatory Barber Selection */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
+            {/* Section 1: Barber Selection - Available Barbers Only (ช่างเท่าที่มี) */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between flex-wrap gap-1">
                 <label className="text-xs font-bold text-zinc-100 flex items-center space-x-1.5">
                   <Armchair className="w-3.5 h-3.5 text-amber-400" />
-                  <span>1. เลือกช่างประจำคิว</span>
-                  <span className="text-rose-400 font-extrabold text-[11px] px-1.5 py-0.5 rounded bg-rose-500/20 border border-rose-500/30">
-                    * ต้องเลือกช่าง
+                  <span>1. เลือกช่างประจำคิว (ช่างเท่าที่มี)</span>
+                  <span className="text-emerald-400 font-extrabold text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30">
+                    🟢 พร้อมบริการ {availableBarbers.length} ท่าน
                   </span>
                 </label>
-                {selectedBarberObj && (
-                  <span className="text-[11px] text-amber-300 font-bold bg-amber-500/15 px-2 py-0.5 rounded-lg border border-amber-500/30">
-                    ช่าง{selectedBarberObj.nickname} (เก้าอี้ #{selectedBarberObj.chairNumber})
+                {selectedBarberId === 'auto' ? (
+                  <span className="text-[11px] text-purple-300 font-bold bg-purple-500/15 px-2 py-0.5 rounded-lg border border-purple-500/30 truncate max-w-[200px]">
+                    ⚡ เฉลี่ยคิวเท่ากัน (จัดให้: {autoAssignedBarber?.nickname})
                   </span>
-                )}
+                ) : selectedBarberObj ? (
+                  <span className="text-[11px] text-amber-300 font-bold bg-amber-500/15 px-2 py-0.5 rounded-lg border border-amber-500/30 truncate max-w-[200px]">
+                    {formatBarberDisplayName(selectedBarberObj.nickname)} (โต๊ะ #{selectedBarberObj.chairNumber})
+                  </span>
+                ) : null}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                {barbers.map((barber) => {
-                  const isClosed = barber.isActive === false;
-                  const stats = getBarberQueueStats(barber.id);
-                  const isSelected = selectedBarberId === barber.id;
-
-                  return (
-                    <button
-                      key={barber.id}
-                      type="button"
-                      disabled={isClosed}
-                      onClick={() => {
-                        setSelectedBarberId(barber.id);
-                        setBarberError(null);
-                        soundFx.playClick();
-                      }}
-                      className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between relative cursor-pointer ${
-                        isClosed
-                          ? 'bg-zinc-950/50 border-zinc-800 opacity-40 cursor-not-allowed'
-                          : isSelected
-                          ? 'bg-amber-500/15 border-amber-400 text-amber-100 shadow-md ring-2 ring-amber-400/80'
-                          : 'bg-zinc-950 border-zinc-800 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-900/60'
-                      }`}
-                    >
-                      {/* Selected Indicator */}
-                      {isSelected && (
-                        <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-amber-400 text-zinc-950 text-[10px] font-black flex items-center space-x-0.5 shadow">
-                          <CheckCircle2 className="w-3 h-3 fill-zinc-950 text-amber-400" />
-                          <span>เลือกแล้ว</span>
-                        </div>
-                      )}
-
-                      <div className="flex items-center space-x-2.5">
-                        <div className="relative shrink-0">
-                          <img
-                            src={barber.avatarUrl}
-                            alt={barber.name}
-                            className={`w-11 h-11 rounded-xl object-cover border ${
-                              isSelected ? 'border-amber-400 ring-1 ring-amber-400' : 'border-zinc-700'
-                            }`}
-                          />
-                          <span className="absolute -bottom-1 -right-1 px-1 rounded bg-zinc-900 border border-zinc-700 text-[9px] font-mono font-bold text-amber-400">
-                            #{barber.chairNumber}
-                          </span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <span className="text-xs font-black text-white block truncate">
-                            {barber.nickname}
-                          </span>
-                          <span className="text-[10px] text-zinc-400 block truncate">
-                            {barber.name}
-                          </span>
-                          <span className="text-[10px] text-amber-400/90 block truncate mt-0.5 font-medium">
-                            เก้าอี้ #{barber.chairNumber}
-                          </span>
-                        </div>
+              {/* Quick Auto-Assign Option (Distribute queues equally among available barbers) */}
+              {availableBarbers.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedBarberId('auto');
+                    setBarberError(null);
+                    soundFx.playClick();
+                  }}
+                  className={`w-full p-2.5 rounded-2xl border transition flex items-center justify-between cursor-pointer active:scale-[0.99] ${
+                    selectedBarberId === 'auto'
+                      ? 'bg-purple-500/20 border-purple-400 text-purple-100 shadow-md ring-2 ring-purple-400/70'
+                      : 'bg-zinc-950/80 border-zinc-800 text-zinc-300 hover:border-purple-500/40 hover:bg-zinc-900/60'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-xl bg-purple-600/30 border border-purple-500/40 flex items-center justify-center text-purple-300 shrink-0">
+                      <Zap className="w-4 h-4" />
+                    </div>
+                    <div className="text-left min-w-0">
+                      <div className="flex items-center space-x-1.5">
+                        <span className="text-xs font-bold text-white">⚡ จัดคิวอัตโนมัติ (เฉลี่ยให้ช่างเท่าๆ กัน)</span>
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/30 text-purple-200 border border-purple-500/40 font-bold">
+                          แนะนำ
+                        </span>
                       </div>
+                      <p className="text-[11px] text-zinc-400 truncate">
+                        ระบบจะส่งคิวให้ {autoAssignedBarber?.nickname ? `ช่าง${autoAssignedBarber.nickname} (โต๊ะ #${autoAssignedBarber.chairNumber})` : 'ช่างที่คิวน้อยสุด'}
+                      </p>
+                    </div>
+                  </div>
 
-                      <div className="mt-2.5 pt-2 border-t border-zinc-850 flex items-center justify-between text-[11px]">
-                        {isClosed ? (
-                          <span className="text-[10px] text-rose-400 font-bold">งดรับคิววันนี้</span>
-                        ) : stats.count === 0 ? (
-                          <span className="text-[11px] text-emerald-400 font-bold flex items-center space-x-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-                            <span>ว่างพร้อมตัด (0 คิว)</span>
-                          </span>
-                        ) : (
-                          <span className="text-[11px] text-zinc-300">
-                            รอ <strong className="text-amber-400">{stats.count}</strong> คิว (~{stats.estMinutes}น.)
-                          </span>
+                  <div className="shrink-0 text-right ml-2">
+                    {selectedBarberId === 'auto' ? (
+                      <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-purple-500 text-white flex items-center space-x-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>เลือกแล้ว</span>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-zinc-400">คลิกเลือก</span>
+                    )}
+                  </div>
+                </button>
+              )}
+
+              {/* Available Barbers Grid - Only Available Barbers, Equal Sizing */}
+              {availableBarbers.length === 0 ? (
+                <div className="p-4 bg-rose-500/10 border border-rose-500/30 rounded-2xl text-center space-y-2">
+                  <p className="text-xs font-bold text-rose-300">
+                    ขณะนี้ไม่มีช่างเปิดรับคิว (ช่างทุกคนปิดสถานะ)
+                  </p>
+                  <p className="text-[11px] text-zinc-400">
+                    กรุณาเปิดสถานะการทำงานของช่างในระบบตั้งค่าหรือแผงควบคุมช่าง
+                  </p>
+                </div>
+              ) : (
+                <div
+                  className={`grid gap-2.5 ${
+                    availableBarbers.length === 1
+                      ? 'grid-cols-1'
+                      : availableBarbers.length === 2
+                      ? 'grid-cols-2'
+                      : 'grid-cols-1 sm:grid-cols-3'
+                  }`}
+                >
+                  {availableBarbers.map((barber) => {
+                    const stats = getBarberQueueStats(barber.id);
+                    const isSelected = selectedBarberId === barber.id;
+
+                    return (
+                      <button
+                        key={barber.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedBarberId(barber.id);
+                          setBarberError(null);
+                          soundFx.playClick();
+                        }}
+                        className={`p-3 rounded-2xl border text-left transition flex flex-col justify-between relative cursor-pointer min-w-0 active:scale-[0.98] ${
+                          isSelected
+                            ? 'bg-amber-500/15 border-amber-400 text-amber-100 shadow-md ring-2 ring-amber-400/80'
+                            : 'bg-zinc-950 border-zinc-800 text-zinc-300 hover:border-zinc-700 hover:bg-zinc-900/60'
+                        }`}
+                      >
+                        {/* Selected Indicator */}
+                        {isSelected && (
+                          <div className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-amber-400 text-zinc-950 text-[10px] font-black flex items-center space-x-0.5 shadow">
+                            <CheckCircle2 className="w-3 h-3 fill-zinc-950 text-amber-400" />
+                            <span>เลือกแล้ว</span>
+                          </div>
                         )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+
+                        <div className="flex items-center space-x-2.5 min-w-0">
+                          <div className="relative shrink-0">
+                            <img
+                              src={barber.avatarUrl}
+                              alt={barber.name}
+                              className={`w-11 h-11 rounded-xl object-cover border ${
+                                isSelected ? 'border-amber-400 ring-1 ring-amber-400' : 'border-zinc-700'
+                              }`}
+                            />
+                            <span className="absolute -bottom-1 -right-1 px-1 rounded bg-zinc-900 border border-zinc-700 text-[9px] font-mono font-bold text-amber-400">
+                              #{barber.chairNumber}
+                            </span>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <span className="text-xs font-black text-white block truncate">
+                              {barber.nickname}
+                            </span>
+                            <span className="text-[10px] text-zinc-400 block truncate">
+                              {barber.name}
+                            </span>
+                            <span className="text-[10px] text-amber-400/90 block truncate mt-0.5 font-medium">
+                              โต๊ะ #{barber.chairNumber}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="mt-2.5 pt-2 border-t border-zinc-800/80 flex items-center justify-between text-[11px]">
+                          {stats.count === 0 ? (
+                            <span className="text-[11px] text-emerald-400 font-bold flex items-center space-x-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
+                              <span>ว่างพร้อมตัด (0 คิว)</span>
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-zinc-300">
+                              รอ <strong className="text-amber-400">{stats.count}</strong> คิว (~{stats.estMinutes}น.)
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Section 2: Service Selection */}
@@ -597,7 +738,7 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
               <div className="flex items-center space-x-2">
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={handleCloseModal}
                   className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition cursor-pointer"
                 >
                   ยกเลิก
@@ -608,7 +749,7 @@ export const WalkInModal: React.FC<WalkInModalProps> = ({
                 >
                   <Footprints className="w-4 h-4" />
                   <span>
-                    {selectedBarberObj ? `ออกบัตรคิว (ช่าง${selectedBarberObj.nickname})` : 'ออกบัตรคิว Walk-in'}
+                    {selectedBarberObj ? `ออกบัตรคิว (${formatBarberDisplayName(selectedBarberObj.nickname)})` : 'ออกบัตรคิว Walk-in'}
                   </span>
                 </button>
               </div>

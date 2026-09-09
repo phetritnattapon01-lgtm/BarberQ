@@ -38,8 +38,10 @@ import {
   Download,
   Copy,
   Check,
+  Loader2,
 } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import html2canvas from 'html2canvas-pro';
+import { soundFx } from '../utils/audio';
 import { useBooking } from '../context/BookingContext';
 import {
   TransactionItem,
@@ -121,89 +123,145 @@ export const AccountingView: React.FC = () => {
   const [reportToast, setReportToast] = useState<string | null>(null);
   const printReportRef = useRef<HTMLDivElement>(null);
 
-  const handlePrintReport = () => {
+  const triggerPrintIframe = () => {
     const content = printReportRef.current?.innerHTML;
-    if (!content) {
-      window.print();
-      return;
+    if (!content) return;
+
+    try {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+
+      document.body.appendChild(iframe);
+
+      const doc = iframe.contentWindow?.document;
+      if (doc) {
+        doc.open();
+        doc.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>รายงานงบการเงิน - ${shopSettings.shopName}</title>
+              <style>
+                @page { margin: 12mm; size: auto; }
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 20px; color: #18181b; background: #ffffff; }
+                @media print {
+                  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+                }
+              </style>
+            </head>
+            <body>
+              ${content}
+            </body>
+          </html>
+        `);
+        doc.close();
+
+        setTimeout(() => {
+          try {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+          } catch {
+            // If browser blocks iframe printing
+          }
+          setTimeout(() => {
+            if (iframe.parentNode) {
+              iframe.parentNode.removeChild(iframe);
+            }
+          }, 2500);
+        }, 400);
+      }
+    } catch {
+      // Safe fallback
     }
+  };
 
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (doc) {
-      doc.open();
-      doc.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>รายงานงบการเงิน - ${shopSettings.shopName}</title>
-            <style>
-              body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; padding: 24px; color: #18181b; }
-              .header { border-bottom: 2px solid #18181b; padding-bottom: 12px; display: flex; justify-content: space-between; }
-              .summary-box { background: #f4f4f5; border: 1px solid #e4e4e7; border-radius: 12px; padding: 16px; margin-top: 16px; }
-              .net-profit { background: #09090b; color: #ffffff; border-radius: 12px; padding: 16px; margin-top: 16px; display: flex; justify-content: space-between; }
-            </style>
-          </head>
-          <body>
-            ${content}
-            <script>
-              window.onload = function() {
-                window.focus();
-                window.print();
-                setTimeout(function() {
-                  window.frameElement.parentNode.removeChild(window.frameElement);
-                }, 1000);
-              };
-            </script>
-          </body>
-        </html>
-      `);
-      doc.close();
-      setReportToast('🖨️ สั่งพิมพ์รายงานเรียบร้อย');
-      setTimeout(() => setReportToast(null), 3000);
-    } else {
-      window.print();
-    }
+  const handlePrintReport = () => {
+    soundFx.playClick();
+    triggerPrintIframe();
+    setReportToast('🖨️ ส่งคำสั่งพิมพ์เรียบร้อย');
+    setTimeout(() => setReportToast(null), 3000);
   };
 
   const handleDownloadReportPNG = async () => {
     if (!printReportRef.current) return;
     setIsExportingImg(true);
+    soundFx.playClick();
 
     try {
       const canvas = await html2canvas(printReportRef.current, {
         scale: 2,
         backgroundColor: '#ffffff',
         useCORS: true,
+        logging: false,
       });
 
       const imageUri = canvas.toDataURL('image/png');
       const link = document.createElement('a');
       link.href = imageUri;
-      link.download = `Financial-Report-${period}-${new Date().toISOString().split('T')[0]}.png`;
+      link.download = `งบการเงิน-${period}-${new Date().toISOString().split('T')[0]}.png`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
 
+      soundFx.playSuccess();
       setReportToast('💾 บันทึกรูปรายงานการเงิน (PNG) สำเร็จแล้ว!');
       setTimeout(() => setReportToast(null), 3500);
     } catch (err) {
       console.error('Error generating report image:', err);
+      setReportToast('❌ เกิดข้อผิดพลาดในการสร้างรูปภาพ');
+      setTimeout(() => setReportToast(null), 3000);
     } finally {
       setIsExportingImg(false);
     }
   };
 
+  const handleExportReport = async () => {
+    setIsExportingImg(true);
+    soundFx.playClick();
+
+    let imageSaved = false;
+    if (printReportRef.current) {
+      try {
+        const canvas = await html2canvas(printReportRef.current, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          useCORS: true,
+          logging: false,
+        });
+
+        const imageUri = canvas.toDataURL('image/png');
+        const link = document.createElement('a');
+        link.href = imageUri;
+        link.download = `Financial-Report-${period}-${new Date().toISOString().split('T')[0]}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        imageSaved = true;
+      } catch (err) {
+        console.error('Error exporting report canvas:', err);
+      }
+    }
+
+    // Trigger browser print/save-as-pdf
+    triggerPrintIframe();
+
+    soundFx.playSuccess();
+    setReportToast(
+      imageSaved
+        ? '✅ ส่งออกไฟล์รายงานและเปิดคำสั่งพิมพ์/บันทึก PDF เรียบร้อย'
+        : '🖨️ ส่งคำสั่งพิมพ์/บันทึก PDF เรียบร้อยแล้ว'
+    );
+    setTimeout(() => setReportToast(null), 3500);
+    setIsExportingImg(false);
+  };
+
   const handleCopyReportSummary = async () => {
+    soundFx.playClick();
     const text = `📊 สรุปงบการเงิน ${shopSettings.shopName} (${getPeriodLabel()})
 ---------------------------------------
 รายรับทั้งหมด: ฿${metrics.totalIncome.toLocaleString()} (ตัดผม: ฿${metrics.serviceIncome.toLocaleString()} / ผลิตภัณฑ์: ฿${metrics.productIncome.toLocaleString()})
@@ -213,13 +271,16 @@ export const AccountingView: React.FC = () => {
 ---------------------------------------`;
     try {
       await navigator.clipboard.writeText(text);
+      soundFx.playSuccess();
       setReportCopied(true);
-      setReportToast('📋 คัดลอกสรุปงบการเงินแล้ว');
+      setReportToast('📋 คัดลอกสรุปงบการเงินลงคลิปบอร์ดแล้ว');
       setTimeout(() => {
         setReportCopied(false);
         setReportToast(null);
       }, 3000);
-    } catch {}
+    } catch {
+      // Ignore
+    }
   };
 
   // Form State
@@ -477,149 +538,149 @@ export const AccountingView: React.FC = () => {
   return (
     <div className="space-y-6 pb-24">
       {/* Top Banner & Control Bar */}
-      <div className="bg-gradient-to-br from-zinc-900 via-zinc-900/90 to-zinc-950 border border-zinc-800 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
+      <div className="bg-gradient-to-br from-zinc-900 via-zinc-900/90 to-zinc-950 border border-zinc-800 rounded-3xl p-4 sm:p-5 shadow-xl relative overflow-hidden space-y-4">
         <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 relative z-10">
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400">
-                <DollarSign className="w-5 h-5" />
-              </span>
-              <div>
-                <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
-                  ระบบบัญชี รายรับ-รายจ่าย
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                    REAL-TIME SYNC
-                  </span>
-                </h1>
-                <p className="text-xs text-zinc-400 mt-0.5">
-                  สรุปผลประกอบการ ยอดตัดผม เงินมัดจำ ค่าคอมมิชชั่นช่าง และกำไรสุทธิ
-                </p>
-              </div>
+        {/* Top Header: Icon + Title + Status Badge */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="w-11 h-11 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-inner">
+              <DollarSign className="w-5 h-5" />
             </div>
-          </div>
-
-          {/* Action Buttons: Add Income, Add Expense, Print P&L, Quick Lock */}
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={() => handleOpenAddModal('add_income')}
-              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-950/40 transition active:scale-95"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ บันทึกรายรับ</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleOpenAddModal('add_expense')}
-              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-950/40 transition active:scale-95"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ บันทึกรายจ่าย</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsPrintModalOpen(true)}
-              className="flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 text-xs font-medium transition"
-              title="พิมพ์รายงานสรุปงบการเงิน"
-            >
-              <Printer className="w-4 h-4 text-amber-400" />
-              <span className="hidden sm:inline">พิมพ์งบการเงิน</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                lockAdmin();
-                setActiveTab('book');
-              }}
-              className="flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 text-xs font-bold transition shadow"
-              title="ล็อคระบบความปลอดภัยและกลับหน้าหลัก"
-            >
-              <Lock className="w-3.5 h-3.5" />
-              <span>ล็อคระบบ</span>
-            </button>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-base sm:text-lg font-bold text-white leading-snug">
+                  ระบบบัญชี รายรับ-รายจ่าย
+                </h1>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-mono tracking-wider shrink-0">
+                  REAL-TIME SYNC
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                สรุปผลประกอบการ ยอดตัดผม เงินมัดจำ ค่าคอมมิชชั่นช่าง และกำไรสุทธิ
+              </p>
+            </div>
           </div>
         </div>
 
+        {/* 4 Equal Action Buttons (2x2 on mobile, 4x1 on desktop - No overlap) */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 pt-3 border-t border-zinc-800/80 relative z-10">
+          <button
+            type="button"
+            onClick={() => handleOpenAddModal('add_income')}
+            className="w-full min-w-0 min-h-[42px] px-2.5 sm:px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-500/50 text-xs font-bold shadow-sm transition active:scale-95 flex items-center justify-center space-x-1.5 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            <span className="truncate">บันทึกรายรับ</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleOpenAddModal('add_expense')}
+            className="w-full min-w-0 min-h-[42px] px-2.5 sm:px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white border border-rose-500/50 text-xs font-bold shadow-sm transition active:scale-95 flex items-center justify-center space-x-1.5 cursor-pointer"
+          >
+            <Plus className="w-4 h-4 shrink-0" />
+            <span className="truncate">บันทึกรายจ่าย</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsPrintModalOpen(true)}
+            className="w-full min-w-0 min-h-[42px] px-2.5 sm:px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 text-xs font-semibold shadow-sm transition active:scale-95 flex items-center justify-center space-x-1.5 cursor-pointer"
+            title="พิมพ์รายงานสรุปงบการเงิน"
+          >
+            <Printer className="w-4 h-4 text-amber-400 shrink-0" />
+            <span className="truncate">พิมพ์งบการเงิน</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              lockAdmin();
+              setActiveTab('book');
+            }}
+            className="w-full min-w-0 min-h-[42px] px-2.5 sm:px-3 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/40 text-xs font-semibold shadow-sm transition active:scale-95 flex items-center justify-center space-x-1.5 cursor-pointer"
+            title="ล็อคระบบความปลอดภัยและกลับหน้าหลัก"
+          >
+            <Lock className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+            <span className="truncate">ล็อคระบบ</span>
+          </button>
+        </div>
+
         {/* Period Selector Tabs: Daily, Weekly, Monthly, All */}
-        <div className="mt-5 pt-4 border-t border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          {/* Equal 4-Column Grid on Mobile, perfectly balanced & no cut-off */}
-          <div className="w-full sm:w-auto grid grid-cols-4 p-1 bg-zinc-950 border border-zinc-800 rounded-2xl gap-1">
+        <div className="mt-5 pt-4 border-t border-zinc-800/80 space-y-3">
+          {/* Equal 4-Column Grid on all viewports, perfectly balanced & no cut-off */}
+          <div className="grid grid-cols-4 p-1 bg-zinc-950/90 border border-zinc-800 rounded-2xl gap-1">
             <button
               type="button"
               onClick={() => setPeriod('daily')}
-              className={`py-2 px-1 sm:px-3 rounded-xl text-xs font-bold transition flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 cursor-pointer ${
+              className={`py-2 px-1 sm:px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 period === 'daily'
                   ? 'bg-amber-500 text-zinc-950 shadow-md font-extrabold'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
               }`}
             >
               <Calendar className="w-3.5 h-3.5 shrink-0" />
-              <span className="text-[11px] sm:text-xs whitespace-nowrap">รายวัน</span>
-              <span className="text-[10px] opacity-75 font-normal hidden sm:inline">(Daily)</span>
+              <span>รายวัน</span>
             </button>
 
             <button
               type="button"
               onClick={() => setPeriod('weekly')}
-              className={`py-2 px-1 sm:px-3 rounded-xl text-xs font-bold transition flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 cursor-pointer ${
+              className={`py-2 px-1 sm:px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 period === 'weekly'
                   ? 'bg-amber-500 text-zinc-950 shadow-md font-extrabold'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
               }`}
             >
               <BarChart3 className="w-3.5 h-3.5 shrink-0" />
-              <span className="text-[11px] sm:text-xs whitespace-nowrap">สัปดาห์</span>
-              <span className="text-[10px] opacity-75 font-normal hidden sm:inline">(Weekly)</span>
+              <span>สัปดาห์</span>
             </button>
 
             <button
               type="button"
               onClick={() => setPeriod('monthly')}
-              className={`py-2 px-1 sm:px-3 rounded-xl text-xs font-bold transition flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 cursor-pointer ${
+              className={`py-2 px-1 sm:px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 period === 'monthly'
                   ? 'bg-amber-500 text-zinc-950 shadow-md font-extrabold'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
               }`}
             >
               <PieChart className="w-3.5 h-3.5 shrink-0" />
-              <span className="text-[11px] sm:text-xs whitespace-nowrap">รายเดือน</span>
-              <span className="text-[10px] opacity-75 font-normal hidden sm:inline">(Monthly)</span>
+              <span>รายเดือน</span>
             </button>
 
             <button
               type="button"
               onClick={() => setPeriod('custom')}
-              className={`py-2 px-1 sm:px-3 rounded-xl text-xs font-bold transition flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-1.5 cursor-pointer ${
+              className={`py-2 px-1 sm:px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 period === 'custom'
                   ? 'bg-amber-500 text-zinc-950 shadow-md font-extrabold'
                   : 'text-zinc-400 hover:text-white hover:bg-zinc-900/50'
               }`}
             >
               <Layers className="w-3.5 h-3.5 shrink-0" />
-              <span className="text-[11px] sm:text-xs whitespace-nowrap">ทั้งหมด</span>
-              <span className="text-[10px] opacity-75 font-normal hidden sm:inline">(All)</span>
+              <span>ทั้งหมด</span>
             </button>
           </div>
 
-          {/* Date / Month Picker Navigation */}
-          <div className="w-full sm:w-auto flex items-center justify-between sm:justify-start gap-2">
+          {/* Date / Month Picker Row */}
+          <div className="flex items-center justify-between gap-2.5 flex-wrap sm:flex-nowrap">
             {period === 'daily' && (
-              <div className="flex-1 sm:flex-none flex items-center justify-between space-x-2 bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-1.5">
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="bg-transparent text-xs text-zinc-200 focus:outline-none cursor-pointer"
-                />
+              <div className="flex-1 flex items-center justify-between space-x-2 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2">
+                <div className="flex items-center space-x-2 min-w-0">
+                  <Calendar className="w-4 h-4 text-amber-400 shrink-0" />
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="bg-transparent text-xs text-zinc-200 focus:outline-none cursor-pointer"
+                  />
+                </div>
                 <button
                   type="button"
                   onClick={() => setSelectedDate(todayStr)}
-                  className="text-[10px] px-2 py-0.5 bg-zinc-800 text-amber-400 rounded-lg hover:bg-zinc-700 font-semibold shrink-0"
+                  className="text-xs px-2.5 py-1 bg-zinc-800 text-amber-400 rounded-lg hover:bg-zinc-700 font-semibold shrink-0 cursor-pointer"
                 >
                   วันนี้
                 </button>
@@ -627,7 +688,7 @@ export const AccountingView: React.FC = () => {
             )}
 
             {period === 'weekly' && (
-              <div className="flex-1 sm:flex-none flex items-center justify-between space-x-2 bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-1.5">
+              <div className="flex-1 flex items-center justify-between space-x-2 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2">
                 <span className="text-xs text-zinc-400 shrink-0">ถึงวันที่:</span>
                 <input
                   type="date"
@@ -639,7 +700,7 @@ export const AccountingView: React.FC = () => {
             )}
 
             {period === 'monthly' && (
-              <div className="flex-1 sm:flex-none flex items-center justify-between space-x-2 bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-1.5">
+              <div className="flex-1 flex items-center justify-between space-x-2 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2">
                 <span className="text-xs text-zinc-400 shrink-0">เลือกเดือน:</span>
                 <input
                   type="month"
@@ -650,13 +711,20 @@ export const AccountingView: React.FC = () => {
               </div>
             )}
 
+            {period === 'custom' && (
+              <div className="flex-1 text-xs text-zinc-400 bg-zinc-950/60 border border-zinc-800 rounded-xl px-3 py-2 flex items-center space-x-2">
+                <Layers className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>แสดงข้อมูลบัญชีสะสมทั้งหมด</span>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={resetTransactions}
               title="รีเซ็ตเป็นข้อมูลตัวอย่างตั้งต้น"
-              className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white shrink-0 active:scale-95"
+              className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white shrink-0 active:scale-95 cursor-pointer flex items-center justify-center"
             >
-              <RotateCcw className="w-3.5 h-3.5" />
+              <RotateCcw className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -665,7 +733,7 @@ export const AccountingView: React.FC = () => {
       {/* Period Headline */}
       <div className="flex items-center justify-between px-1">
         <h2 className="text-sm font-bold text-zinc-300 flex items-center gap-1.5">
-          <Calendar className="w-4 h-4 text-amber-400" />
+          <Calendar className="w-4 h-4 text-amber-400 shrink-0" />
           <span>ผลประกอบการ: <strong className="text-amber-400">{getPeriodLabel()}</strong></span>
         </h2>
         <span className="text-xs text-zinc-500">
@@ -673,109 +741,116 @@ export const AccountingView: React.FC = () => {
         </span>
       </div>
 
-      {/* Main KPI Cards (4 Column Grid) */}
+      {/* Main KPI Cards (4 Column Grid with equal height & tidy proportions) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {/* Total Income */}
-        <div className="bg-zinc-900/90 border border-zinc-800/90 rounded-2xl p-4 relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
-              รายรับรวม (Income)
-            </span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-              <ArrowUpRight className="w-4 h-4" />
+        <div className="bg-zinc-900/90 border border-zinc-800/90 rounded-2xl p-3.5 sm:p-4 relative overflow-hidden flex flex-col justify-between min-h-[120px]">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+                รายรับรวม
+              </span>
+              <div className="w-7 h-7 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+                <ArrowUpRight className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <span className="text-xl sm:text-2xl font-black text-emerald-400 tracking-tight whitespace-nowrap">
+                ฿{metrics.totalIncome.toLocaleString()}
+              </span>
             </div>
           </div>
-          <div className="mt-2.5">
-            <span className="text-xl sm:text-2xl font-black text-emerald-400 tracking-tight">
-              ฿{metrics.totalIncome.toLocaleString()}
-            </span>
-          </div>
-          <div className="mt-1 text-[11px] text-zinc-400 flex items-center space-x-2">
+          <div className="mt-2 pt-1.5 border-t border-zinc-800/80 text-[11px] text-zinc-400 flex items-center justify-between flex-wrap gap-1">
             <span>{metrics.incomeCount} รายการ</span>
-            <span>•</span>
-            <span className="text-emerald-500/90">ตัดผม/มัดจำ ฿{metrics.serviceIncome.toLocaleString()}</span>
+            <span className="text-emerald-400 font-medium">บริการ ฿{metrics.serviceIncome.toLocaleString()}</span>
           </div>
         </div>
 
         {/* Total Expense */}
-        <div className="bg-zinc-900/90 border border-zinc-800/90 rounded-2xl p-4 relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
-              รายจ่ายรวม (Expense)
-            </span>
-            <div className="w-7 h-7 rounded-lg bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400">
-              <ArrowDownRight className="w-4 h-4" />
+        <div className="bg-zinc-900/90 border border-zinc-800/90 rounded-2xl p-3.5 sm:p-4 relative overflow-hidden flex flex-col justify-between min-h-[120px]">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+                รายจ่ายรวม
+              </span>
+              <div className="w-7 h-7 rounded-lg bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                <ArrowDownRight className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <span className="text-xl sm:text-2xl font-black text-rose-400 tracking-tight whitespace-nowrap">
+                ฿{metrics.totalExpense.toLocaleString()}
+              </span>
             </div>
           </div>
-          <div className="mt-2.5">
-            <span className="text-xl sm:text-2xl font-black text-rose-400 tracking-tight">
-              ฿{metrics.totalExpense.toLocaleString()}
-            </span>
-          </div>
-          <div className="mt-1 text-[11px] text-zinc-400 flex items-center space-x-2">
+          <div className="mt-2 pt-1.5 border-t border-zinc-800/80 text-[11px] text-zinc-400 flex items-center justify-between flex-wrap gap-1">
             <span>{metrics.expenseCount} รายการ</span>
-            <span>•</span>
-            <span className="text-rose-400/90">คอมช่าง ฿{metrics.commissionExpense.toLocaleString()}</span>
+            <span className="text-rose-400 font-medium">คอมช่าง ฿{metrics.commissionExpense.toLocaleString()}</span>
           </div>
         </div>
 
         {/* Net Profit */}
-        <div className="bg-gradient-to-br from-zinc-900 to-zinc-950 border border-amber-500/30 rounded-2xl p-4 relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5" />
-              กำไรสุทธิ (Net Profit)
-            </span>
-            <span
-              className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full ${
-                metrics.netProfit >= 0
-                  ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                  : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-              }`}
-            >
-              {metrics.profitMargin}% Margin
-            </span>
+        <div className="bg-gradient-to-br from-zinc-900 to-zinc-950 border border-amber-500/30 rounded-2xl p-3.5 sm:p-4 relative overflow-hidden flex flex-col justify-between min-h-[120px]">
+          <div>
+            <div className="flex items-center justify-between gap-1">
+              <span className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1 shrink-0">
+                <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                <span>กำไรสุทธิ</span>
+              </span>
+              <span
+                className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-full shrink-0 whitespace-nowrap ${
+                  metrics.netProfit >= 0
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                    : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                }`}
+              >
+                {metrics.profitMargin}% Margin
+              </span>
+            </div>
+            <div className="mt-2">
+              <span
+                className={`text-xl sm:text-2xl font-black tracking-tight whitespace-nowrap ${
+                  metrics.netProfit >= 0 ? 'text-white' : 'text-rose-400'
+                }`}
+              >
+                {metrics.netProfit >= 0 ? '+' : ''}฿{metrics.netProfit.toLocaleString()}
+              </span>
+            </div>
           </div>
-          <div className="mt-2.5">
-            <span
-              className={`text-xl sm:text-2xl font-black tracking-tight ${
-                metrics.netProfit >= 0 ? 'text-white' : 'text-rose-400'
-              }`}
-            >
-              {metrics.netProfit >= 0 ? '+' : ''}฿{metrics.netProfit.toLocaleString()}
-            </span>
+          <div className="mt-2 pt-1.5 border-t border-amber-500/20 text-[11px] text-zinc-400">
+            <span>หักค่าคอมฯ และค่าใช้จ่ายร้าน</span>
           </div>
-          <p className="mt-1 text-[11px] text-zinc-400">
-            หลังหักค่าคอมฯ ช่างและค่าใช้จ่ายร้าน
-          </p>
         </div>
 
         {/* Barber Commission Outflow */}
-        <div className="bg-zinc-900/90 border border-zinc-800/90 rounded-2xl p-4 relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
-              จ่ายค่าคอม 3 ช่าง
-            </span>
-            <div className="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
-              <Users className="w-4 h-4" />
+        <div className="bg-zinc-900/90 border border-zinc-800/90 rounded-2xl p-3.5 sm:p-4 relative overflow-hidden flex flex-col justify-between min-h-[120px]">
+          <div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
+                จ่ายค่าคอม 3 ช่าง
+              </span>
+              <div className="w-7 h-7 rounded-lg bg-indigo-500/10 border border-indigo-500/30 flex items-center justify-center text-indigo-400 shrink-0">
+                <Users className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2">
+              <span className="text-xl sm:text-2xl font-black text-indigo-400 tracking-tight whitespace-nowrap">
+                ฿{metrics.commissionExpense.toLocaleString()}
+              </span>
             </div>
           </div>
-          <div className="mt-2.5">
-            <span className="text-xl sm:text-2xl font-black text-indigo-400 tracking-tight">
-              ฿{metrics.commissionExpense.toLocaleString()}
-            </span>
+          <div className="mt-2 pt-1.5 border-t border-zinc-800/80 text-[11px] text-zinc-400 flex items-center justify-between flex-wrap gap-1">
+            <span>ส่วนแบ่งร้านคงเหลือ:</span>
+            <strong className="text-amber-400 font-bold">{metrics.shopRetainedRate}%</strong>
           </div>
-          <p className="mt-1 text-[11px] text-zinc-400">
-            ส่วนแบ่งร้านคงเหลือ: <strong className="text-amber-400">{metrics.shopRetainedRate}%</strong>
-          </p>
         </div>
       </div>
 
       {/* Visual Analytics Section (Chart & Barber Commission Cards) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Trend Bar Chart (Spans 2 Cols) */}
-        <div className="lg:col-span-2 bg-zinc-900/80 border border-zinc-800 rounded-3xl p-5 space-y-4">
-          <div className="flex items-center justify-between">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Trend Bar Chart (Spans 7 Cols) */}
+        <div className="lg:col-span-7 bg-zinc-900/80 border border-zinc-800 rounded-3xl p-5 space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
                 <BarChart3 className="w-4 h-4 text-amber-400" />
@@ -849,8 +924,8 @@ export const AccountingView: React.FC = () => {
           </div>
         </div>
 
-        {/* Barber Commission Summary Card (1 Col) */}
-        <div className="bg-zinc-900/80 border border-zinc-800 rounded-3xl p-5 space-y-3.5">
+        {/* Barber Commission Summary Card (Spans 5 Cols) */}
+        <div className="lg:col-span-5 bg-zinc-900/80 border border-zinc-800 rounded-3xl p-5 space-y-3.5 flex flex-col justify-between">
           <div>
             <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
               <Scissors className="w-4 h-4 text-amber-400" />
@@ -872,35 +947,35 @@ export const AccountingView: React.FC = () => {
               return (
                 <div
                   key={barber.id}
-                  className="bg-zinc-950/80 border border-zinc-800/80 rounded-2xl p-3 flex items-center justify-between"
+                  className="bg-zinc-950/80 border border-zinc-800/80 rounded-2xl p-3 flex items-center justify-between gap-2.5"
                 >
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-3 min-w-0">
                     <img
                       src={barber.avatarUrl}
                       alt={barber.name}
                       referrerPolicy="no-referrer"
-                      className="w-10 h-10 rounded-xl object-cover border border-zinc-700"
+                      className="w-10 h-10 rounded-xl object-cover border border-zinc-700 shrink-0"
                     />
-                    <div>
-                      <div className="flex items-center space-x-1.5">
-                        <span className="text-xs font-bold text-white">
+                    <div className="min-w-0">
+                      <div className="flex items-center space-x-1.5 flex-wrap">
+                        <span className="text-xs font-bold text-white whitespace-nowrap">
                           {barber.nickname}
                         </span>
-                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 font-mono">
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-400 font-mono shrink-0">
                           {barber.commissionRate}%
                         </span>
                       </div>
-                      <p className="text-[11px] text-zinc-400">
+                      <p className="text-[11px] text-zinc-400 whitespace-nowrap mt-0.5">
                         {bData.count} งานตัดผม
                       </p>
                     </div>
                   </div>
 
-                  <div className="text-right">
-                    <span className="text-sm font-black text-amber-400">
+                  <div className="text-right shrink-0">
+                    <span className="text-sm font-black text-amber-400 block whitespace-nowrap">
                       ฿{bData.amount.toLocaleString()}
                     </span>
-                    <p className="text-[10px] text-zinc-500">
+                    <p className="text-[10px] text-zinc-500 whitespace-nowrap mt-0.5">
                       {percentOfTotalComm}% ของค่าคอมฯ รวม
                     </p>
                   </div>
@@ -941,7 +1016,7 @@ export const AccountingView: React.FC = () => {
               <div
                 key={catKey}
                 onClick={() => setCategoryFilter(categoryFilter === catKey ? 'all' : catKey)}
-                className={`p-3 rounded-2xl border transition cursor-pointer ${
+                className={`p-3 rounded-2xl border transition cursor-pointer flex flex-col justify-between min-h-[96px] ${
                   categoryFilter === catKey
                     ? 'bg-amber-500/15 border-amber-500/50'
                     : 'bg-zinc-950/70 border-zinc-800/80 hover:border-zinc-700'
@@ -949,7 +1024,7 @@ export const AccountingView: React.FC = () => {
               >
                 <div className="flex items-center justify-between">
                   <div
-                    className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                    className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
                       isIncome
                         ? 'bg-emerald-500/10 text-emerald-400'
                         : 'bg-rose-500/10 text-rose-400'
@@ -958,7 +1033,7 @@ export const AccountingView: React.FC = () => {
                     <Icon className="w-3.5 h-3.5" />
                   </div>
                   <span
-                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                    className={`text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${
                       isIncome
                         ? 'bg-emerald-500/10 text-emerald-400'
                         : 'bg-rose-500/10 text-rose-400'
@@ -968,9 +1043,11 @@ export const AccountingView: React.FC = () => {
                   </span>
                 </div>
                 <div className="mt-2">
-                  <p className="text-[11px] text-zinc-400 truncate">{catData.label}</p>
+                  <p className="text-xs text-zinc-300 font-medium leading-tight line-clamp-1 break-words">
+                    {catData.label}
+                  </p>
                   <p
-                    className={`text-sm font-black mt-0.5 ${
+                    className={`text-sm font-black mt-1 ${
                       isIncome ? 'text-emerald-400' : 'text-rose-400'
                     }`}
                   >
@@ -984,24 +1061,37 @@ export const AccountingView: React.FC = () => {
       </div>
 
       {/* Transaction Ledger List / Search / Filters */}
-      <div className="bg-zinc-900/90 border border-zinc-800 rounded-3xl p-5 space-y-4 shadow-xl">
+      <div className="bg-zinc-900/90 border border-zinc-800 rounded-3xl p-4 sm:p-5 space-y-4 shadow-xl">
+        {/* Header: Title + Subtitle */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Receipt className="w-4 h-4 text-amber-400" />
-              <span>สมุดบัญชีรายการเดินสะพัด (Transaction Ledger)</span>
-            </h3>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              แสดงรายการธุรกรรมรับ-จ่ายทั้งหมดตามเงื่อนไขที่เลือก ({displayTransactions.length} รายการ)
-            </p>
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-inner">
+              <Receipt className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h3 className="text-base sm:text-lg font-bold text-white leading-snug">
+                สมุดบัญชีรายการเดินสะพัด (Transaction Ledger)
+              </h3>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                แสดงรายการธุรกรรมรับ-จ่ายทั้งหมดตามเงื่อนไขที่เลือก ({displayTransactions.length} รายการ)
+              </p>
+            </div>
           </div>
 
-          {/* Type Filter Pills (Equal 4-Column Grid on Mobile) */}
-          <div className="w-full sm:w-auto grid grid-cols-4 p-1 bg-zinc-950 border border-zinc-800 rounded-2xl gap-1 text-center">
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-zinc-950 border border-zinc-800 text-xs font-mono text-zinc-400 shrink-0">
+            <Layers className="w-3.5 h-3.5 text-amber-400" />
+            <span>{displayTransactions.length} รายการ</span>
+          </div>
+        </div>
+
+        {/* Filter Controls: Type Filter Pills (4 Columns) + Search Bar */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-2.5 pt-1">
+          {/* Type Filter Pills (Equal 4-Column Grid) */}
+          <div className="lg:col-span-6 grid grid-cols-4 p-1 bg-zinc-950 border border-zinc-800 rounded-2xl gap-1 text-center">
             <button
               type="button"
               onClick={() => setTypeFilter('all')}
-              className={`py-1.5 px-1 sm:px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+              className={`py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 whitespace-nowrap ${
                 typeFilter === 'all'
                   ? 'bg-zinc-700 text-white shadow-sm'
                   : 'text-zinc-400 hover:text-white'
@@ -1012,7 +1102,7 @@ export const AccountingView: React.FC = () => {
             <button
               type="button"
               onClick={() => setTypeFilter('income')}
-              className={`py-1.5 px-1 sm:px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+              className={`py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 whitespace-nowrap ${
                 typeFilter === 'income'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-emerald-400 hover:text-white'
@@ -1023,7 +1113,7 @@ export const AccountingView: React.FC = () => {
             <button
               type="button"
               onClick={() => setTypeFilter('expense')}
-              className={`py-1.5 px-1 sm:px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+              className={`py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 whitespace-nowrap ${
                 typeFilter === 'expense'
                   ? 'bg-rose-600 text-white shadow-sm'
                   : 'text-rose-400 hover:text-white'
@@ -1034,7 +1124,7 @@ export const AccountingView: React.FC = () => {
             <button
               type="button"
               onClick={() => setTypeFilter('commission')}
-              className={`py-1.5 px-1 sm:px-3 rounded-xl text-xs font-bold transition cursor-pointer ${
+              className={`py-2 px-2 sm:px-3 rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 whitespace-nowrap ${
                 typeFilter === 'commission'
                   ? 'bg-indigo-600 text-white shadow-sm'
                   : 'text-indigo-400 hover:text-white'
@@ -1043,41 +1133,42 @@ export const AccountingView: React.FC = () => {
               คอมช่าง
             </button>
           </div>
-        </div>
 
-        {/* Search & Reset Category Filter */}
-        <div className="flex flex-col sm:flex-row items-center gap-2.5">
-          <div className="relative flex-1 w-full">
-            <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="ค้นหาตามคำอธิบาย, เลขที่อ้างอิง, ชื่อช่าง หรือหมวดหมู่..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
-            />
+          {/* Search & Reset Category Filter */}
+          <div className="lg:col-span-6 flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="ค้นหารายการ, เลขอ้างอิง, ชื่อช่าง หรือหมวดหมู่..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-3 py-2.5 bg-zinc-950 border border-zinc-800 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500 transition"
+              />
+            </div>
+
+            {categoryFilter !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setCategoryFilter('all')}
+                className="px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-medium flex items-center space-x-1 shrink-0 whitespace-nowrap cursor-pointer active:scale-95"
+                title="ล้างตัวกรองหมวดหมู่"
+              >
+                <span>ล้างหมวดหมู่</span>
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
-
-          {categoryFilter !== 'all' && (
-            <button
-              type="button"
-              onClick={() => setCategoryFilter('all')}
-              className="px-3 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs font-medium flex items-center space-x-1"
-            >
-              <span>ล้างตัวกรองหมวดหมู่</span>
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
         </div>
 
         {/* Ledger Items Table / Card List */}
-        <div className="space-y-2 pt-2">
+        <div className="space-y-2.5 pt-1">
           {displayTransactions.length === 0 ? (
             <div className="text-center py-12 bg-zinc-950/50 rounded-2xl border border-dashed border-zinc-800">
               <FileText className="w-10 h-10 text-zinc-600 mx-auto mb-2" />
               <p className="text-sm text-zinc-300 font-semibold">ไม่พบรายการในช่วงเวลาหรือตัวกรองที่เลือก</p>
               <p className="text-xs text-zinc-500 mt-1">
-                คลิกที่ปุ่ม "+ บันทึกรายรับ" หรือ "+ บันทึกรายจ่าย" เพื่อเพิ่มรายการใหม่
+                คลิกที่ปุ่ม "บันทึกรายรับ" หรือ "บันทึกรายจ่าย" เพื่อเพิ่มรายการใหม่
               </p>
             </div>
           ) : (
@@ -1088,79 +1179,83 @@ export const AccountingView: React.FC = () => {
               return (
                 <div
                   key={tx.id}
-                  className="bg-zinc-950/90 border border-zinc-800/90 hover:border-zinc-700/90 rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition"
+                  className="bg-zinc-950/90 border border-zinc-800/90 hover:border-zinc-700/90 rounded-2xl p-3.5 sm:p-4 space-y-2.5 transition shadow-sm"
                 >
-                  <div className="flex items-start space-x-3">
-                    <div
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
-                        isIncome
-                          ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
-                          : 'bg-rose-500/15 border border-rose-500/30 text-rose-400'
-                      }`}
-                    >
-                      <Icon className="w-5 h-5" />
-                    </div>
-
-                    <div className="space-y-0.5">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="text-xs font-bold text-white">
-                          {tx.categoryLabel}
-                        </span>
-                        {tx.isAutoGenerated && (
-                          <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-zinc-800 text-amber-300 border border-amber-500/30">
-                            AUTO SYNC
-                          </span>
-                        )}
-                        <span className="text-[10px] text-zinc-500 font-mono">
-                          #{tx.referenceNumber}
-                        </span>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start space-x-3 min-w-0 flex-1">
+                      <div
+                        className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
+                          isIncome
+                            ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-400'
+                            : 'bg-rose-500/15 border border-rose-500/30 text-rose-400'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4 sm:w-5 sm:h-5" />
                       </div>
 
-                      <p className="text-xs text-zinc-300 font-normal">
-                        {tx.description}
-                      </p>
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-bold text-white">
+                            {tx.categoryLabel}
+                          </span>
+                          {tx.isAutoGenerated && (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-zinc-800 text-amber-300 border border-amber-500/30 shrink-0">
+                              AUTO SYNC
+                            </span>
+                          )}
+                          <span className="text-[10px] text-zinc-500 font-mono shrink-0">
+                            #{tx.referenceNumber}
+                          </span>
+                        </div>
 
-                      <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500 pt-0.5">
-                        <span>📅 {tx.date} • {tx.time} น.</span>
-                        {tx.barberName && (
-                          <span className="text-amber-400/90 font-medium">
-                            ✂️ {tx.barberName}
-                          </span>
-                        )}
-                        {tx.paymentMethod && (
-                          <span className="capitalize px-1.5 py-0.2 rounded bg-zinc-900 text-zinc-400 border border-zinc-800 text-[10px]">
-                            {tx.paymentMethod === 'promptpay'
-                              ? 'PromptPay'
-                              : tx.paymentMethod === 'credit_card'
-                              ? 'Credit Card'
-                              : tx.paymentMethod === 'cash'
-                              ? 'เงินสด'
-                              : 'โอนเงิน'}
-                          </span>
-                        )}
+                        <p className="text-xs text-zinc-300 font-normal leading-relaxed break-words">
+                          {tx.description}
+                        </p>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center justify-between sm:justify-end space-x-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-zinc-800/80">
-                    <div className="text-left sm:text-right">
+                    {/* Amount & Delete */}
+                    <div className="flex items-center space-x-2.5 shrink-0 pt-0.5">
                       <span
-                        className={`text-base sm:text-lg font-black tracking-tight ${
+                        className={`text-base sm:text-lg font-black tracking-tight whitespace-nowrap ${
                           isIncome ? 'text-emerald-400' : 'text-rose-400'
                         }`}
                       >
-                        {isIncome ? '+' : '-'}฿{tx.amount.toLocaleString()}
+                        {isIncome ? '+' : '-'} ฿{tx.amount.toLocaleString()}
                       </span>
-                    </div>
 
-                    <button
-                      type="button"
-                      onClick={() => deleteTransaction(tx.id)}
-                      title="ลบรายการ"
-                      className="p-1.5 rounded-lg text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 transition"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                      {!tx.isAutoGenerated && (
+                        <button
+                          type="button"
+                          onClick={() => deleteTransaction(tx.id)}
+                          title="ลบรายการ"
+                          className="p-1.5 rounded-lg text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Meta Tags Row */}
+                  <div className="flex flex-wrap items-center gap-2 text-[11px] text-zinc-500 pt-2 border-t border-zinc-800/80">
+                    <span className="whitespace-nowrap">📅 {tx.date} • {tx.time} น.</span>
+                    {tx.barberName && (
+                      <span className="text-amber-400/90 font-medium whitespace-nowrap">
+                        ✂️ {tx.barberName}
+                      </span>
+                    )}
+                    {tx.paymentMethod && (
+                      <span className="capitalize px-2 py-0.5 rounded bg-zinc-900 text-zinc-400 border border-zinc-800 text-[10px] whitespace-nowrap">
+                        {tx.paymentMethod === 'promptpay'
+                          ? 'PromptPay'
+                          : tx.paymentMethod === 'credit_card'
+                          ? 'Credit Card'
+                          : tx.paymentMethod === 'cash'
+                          ? 'เงินสด'
+                          : 'โอนเงิน'}
+                      </span>
+                    )}
                   </div>
                 </div>
               );
@@ -1171,12 +1266,27 @@ export const AccountingView: React.FC = () => {
 
       {/* Modal: Quick Add Income / Expense */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-zinc-950 border border-zinc-800 rounded-3xl p-5 sm:p-6 w-full max-w-md shadow-2xl relative">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsModalOpen(false);
+            }
+          }}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="cursor-default bg-zinc-950 border border-zinc-800 rounded-3xl p-5 sm:p-6 w-full max-w-md shadow-2xl relative"
+          >
             <button
               type="button"
-              onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-900"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsModalOpen(false);
+              }}
+              className="absolute top-4 right-4 w-9 h-9 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-900 active:scale-90 flex items-center justify-center transition cursor-pointer z-10"
+              title="ปิด"
+              aria-label="ปิด"
             >
               <X className="w-5 h-5" />
             </button>
@@ -1416,113 +1526,176 @@ export const AccountingView: React.FC = () => {
 
       {/* Modal: Printable P&L Statement (งบการเงิน) */}
       {isPrintModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white text-zinc-900 rounded-3xl p-6 sm:p-8 w-full max-w-2xl shadow-2xl relative font-sans">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setIsPrintModalOpen(false);
+            }
+          }}
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="cursor-default bg-white text-zinc-900 rounded-3xl p-5 sm:p-7 w-full max-w-2xl shadow-2xl relative font-sans"
+          >
             <button
               type="button"
-              onClick={() => setIsPrintModalOpen(false)}
-              className="absolute top-4 right-4 p-2 rounded-xl text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsPrintModalOpen(false);
+              }}
+              className="absolute top-4 right-4 w-9 h-9 rounded-xl text-zinc-500 hover:text-zinc-950 hover:bg-zinc-100 active:scale-90 flex items-center justify-center transition cursor-pointer z-10"
+              title="ปิด"
+              aria-label="ปิด"
             >
               <X className="w-5 h-5" />
             </button>
 
-            {/* Document Header */}
-            <div className="border-b-2 border-zinc-900 pb-4 flex items-start justify-between">
-              <div>
-                <h2 className="text-xl font-black tracking-tight text-zinc-950 uppercase">
-                  {shopSettings.shopName}
-                </h2>
-                <p className="text-xs text-zinc-600">
-                  {shopSettings.branchName} • โทร {shopSettings.phone}
-                </p>
-                <p className="text-[11px] text-zinc-500">
-                  เลขประจำตัวผู้เสียภาษี: {shopSettings.taxId}
-                </p>
+            {/* Notification feedback */}
+            {reportToast && (
+              <div className="mb-4 p-3 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold flex items-center justify-center space-x-2 animate-fadeIn shadow-sm">
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>{reportToast}</span>
               </div>
-              <div className="text-right">
-                <span className="text-xs font-extrabold px-2.5 py-1 bg-zinc-900 text-white rounded">
-                  P&L STATEMENT
-                </span>
-                <p className="text-xs font-bold mt-1 text-zinc-800">
-                  รายงานงบกำไร-ขาดทุน
-                </p>
-                <p className="text-[11px] text-zinc-500">{getPeriodLabel()}</p>
-              </div>
-            </div>
+            )}
 
-            {/* Summary Table */}
-            <div className="my-6 space-y-4">
-              <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
-                <div className="flex justify-between text-sm font-bold text-emerald-700 pb-1 border-b border-zinc-200">
-                  <span>1. รายรับทั้งหมด (Total Revenue)</span>
-                  <span>฿{metrics.totalIncome.toLocaleString()}</span>
-                </div>
-                <div className="pl-4 pt-2 space-y-1 text-xs text-zinc-600">
-                  <div className="flex justify-between">
-                    <span>- บริการตัดผม & มัดจำออนไลน์ ({metrics.incomeCount} คิว)</span>
-                    <span>฿{metrics.serviceIncome.toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>- จำหน่ายผลิตภัณฑ์ใส่ผม/แว็กซ์</span>
-                    <span>฿{metrics.productIncome.toLocaleString()}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
-                <div className="flex justify-between text-sm font-bold text-rose-700 pb-1 border-b border-zinc-200">
-                  <span>2. รายจ่ายทั้งหมด (Total Operating Expenses)</span>
-                  <span>-฿{metrics.totalExpense.toLocaleString()}</span>
-                </div>
-                <div className="pl-4 pt-2 space-y-1 text-xs text-zinc-600">
-                  <div className="flex justify-between text-indigo-700 font-semibold">
-                    <span>- ส่วนแบ่งค่าคอมมิชชั่น 3 ช่าง (Barber Commission)</span>
-                    <span>-฿{metrics.commissionExpense.toLocaleString()}</span>
-                  </div>
-                  {(
-                    Object.entries(metrics.categoryTotals) as [
-                      string,
-                      { label: string; amount: number; type: TransactionType }
-                    ][]
-                  )
-                    .filter(([k, v]) => v.type === 'expense' && k !== 'barber_commission')
-                    .map(([k, v]) => (
-                      <div key={k} className="flex justify-between">
-                        <span>- {v.label}</span>
-                        <span>-฿{v.amount.toLocaleString()}</span>
-                      </div>
-                    ))}
-                </div>
-              </div>
-
-              {/* Net Profit Callout */}
-              <div className="bg-zinc-950 text-white rounded-2xl p-4 flex items-center justify-between">
+            {/* Printable & Exportable Statement Document */}
+            <div ref={printReportRef} className="bg-white p-2 sm:p-4 rounded-2xl select-text">
+              {/* Document Header */}
+              <div className="border-b-2 border-zinc-900 pb-4 flex items-start justify-between">
                 <div>
-                  <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider">
-                    กำไรสุทธิคงเหลือ (Net Profit Margin: {metrics.profitMargin}%)
-                  </span>
-                  <p className="text-xs text-zinc-400">
-                    ยอดเงินคงเหลือหลังหักส่วนแบ่งช่างและต้นทุนร้าน
+                  <h2 className="text-xl font-black tracking-tight text-zinc-950 uppercase">
+                    {shopSettings.shopName}
+                  </h2>
+                  <p className="text-xs text-zinc-600">
+                    {shopSettings.branchName} • โทร {shopSettings.phone}
+                  </p>
+                  <p className="text-[11px] text-zinc-500">
+                    เลขประจำตัวผู้เสียภาษี: {shopSettings.taxId}
                   </p>
                 </div>
                 <div className="text-right">
-                  <span className="text-2xl font-black text-amber-400">
-                    ฿{metrics.netProfit.toLocaleString()}
+                  <span className="text-xs font-extrabold px-2.5 py-1 bg-zinc-900 text-white rounded">
+                    P&L STATEMENT
                   </span>
+                  <p className="text-xs font-bold mt-1 text-zinc-800">
+                    รายงานงบกำไร-ขาดทุน
+                  </p>
+                  <p className="text-[11px] text-zinc-500">{getPeriodLabel()}</p>
                 </div>
+              </div>
+
+              {/* Summary Table */}
+              <div className="my-6 space-y-4">
+                <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
+                  <div className="flex justify-between text-sm font-bold text-emerald-700 pb-1 border-b border-zinc-200">
+                    <span>1. รายรับทั้งหมด (Total Revenue)</span>
+                    <span>฿{metrics.totalIncome.toLocaleString()}</span>
+                  </div>
+                  <div className="pl-4 pt-2 space-y-1 text-xs text-zinc-600">
+                    <div className="flex justify-between">
+                      <span>- บริการตัดผม & มัดจำออนไลน์ ({metrics.incomeCount} คิว)</span>
+                      <span>฿{metrics.serviceIncome.toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>- จำหน่ายผลิตภัณฑ์ใส่ผม/แว็กซ์</span>
+                      <span>฿{metrics.productIncome.toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
+                  <div className="flex justify-between text-sm font-bold text-rose-700 pb-1 border-b border-zinc-200">
+                    <span>2. รายจ่ายทั้งหมด (Total Operating Expenses)</span>
+                    <span>-฿{metrics.totalExpense.toLocaleString()}</span>
+                  </div>
+                  <div className="pl-4 pt-2 space-y-1 text-xs text-zinc-600">
+                    <div className="flex justify-between text-indigo-700 font-semibold">
+                      <span>- ส่วนแบ่งค่าคอมมิชชั่น 3 ช่าง (Barber Commission)</span>
+                      <span>-฿{metrics.commissionExpense.toLocaleString()}</span>
+                    </div>
+                    {(
+                      Object.entries(metrics.categoryTotals) as [
+                        string,
+                        { label: string; amount: number; type: TransactionType }
+                      ][]
+                    )
+                      .filter(([k, v]) => v.type === 'expense' && k !== 'barber_commission')
+                      .map(([k, v]) => (
+                        <div key={k} className="flex justify-between">
+                          <span>- {v.label}</span>
+                          <span>-฿{v.amount.toLocaleString()}</span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                {/* Net Profit Callout */}
+                <div className="bg-zinc-950 text-white rounded-2xl p-4 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider">
+                      กำไรสุทธิคงเหลือ (Net Profit Margin: {metrics.profitMargin}%)
+                    </span>
+                    <p className="text-xs text-zinc-400">
+                      ยอดเงินคงเหลือหลังหักส่วนแบ่งช่างและต้นทุนร้าน
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-2xl font-black text-amber-400">
+                      ฿{metrics.netProfit.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Statement Note & Timestamp */}
+              <div className="pt-3 border-t border-zinc-200 flex items-center justify-between text-[11px] text-zinc-500">
+                <span>ออกเอกสารเมื่อ: {new Date().toLocaleString('th-TH')}</span>
+                <span className="text-zinc-400 font-mono">FIN-REPORT-{period.toUpperCase()}</span>
               </div>
             </div>
 
-            {/* Document Footer */}
-            <div className="pt-4 border-t border-zinc-200 flex items-center justify-between text-xs text-zinc-500">
-              <span>ออกเอกสารเมื่อ: {new Date().toLocaleString('th-TH')}</span>
+            {/* Modal Actions Footer */}
+            <div className="mt-4 pt-4 border-t border-zinc-200 flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopyReportSummary}
+                  className="px-3 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 active:scale-95 text-zinc-800 text-xs font-semibold flex items-center gap-1.5 transition border border-zinc-300/80 cursor-pointer"
+                  title="คัดลอกข้อความสรุป"
+                >
+                  {reportCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-zinc-600" />}
+                  <span>{reportCopied ? 'คัดลอกแล้ว' : 'คัดลอกสรุป'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrintReport}
+                  className="px-3 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 active:scale-95 text-zinc-800 text-xs font-semibold flex items-center gap-1.5 transition border border-zinc-300/80 cursor-pointer"
+                  title="สั่งพิมพ์เอกสาร"
+                >
+                  <Printer className="w-3.5 h-3.5 text-zinc-600" />
+                  <span>สั่งพิมพ์</span>
+                </button>
+              </div>
+
               <button
                 type="button"
-                onClick={() => window.print()}
-                className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-white font-bold rounded-xl flex items-center space-x-1.5 transition"
+                onClick={handleExportReport}
+                disabled={isExportingImg}
+                className="px-4 py-2.5 bg-zinc-950 hover:bg-zinc-800 active:scale-95 text-white font-bold text-xs rounded-xl flex items-center space-x-2 transition shadow-lg shadow-zinc-950/20 cursor-pointer disabled:opacity-50"
               >
-                <Printer className="w-4 h-4" />
-                <span>สั่งพิมพ์ / Export PDF</span>
+                {isExportingImg ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                    <span>กำลังส่งออก...</span>
+                  </>
+                ) : (
+                  <>
+                    <Printer className="w-4 h-4 text-white" />
+                    <span>สั่งพิมพ์ / Export PDF</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

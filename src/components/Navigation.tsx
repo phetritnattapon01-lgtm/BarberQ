@@ -30,7 +30,11 @@ export const Navigation: React.FC<NavigationProps> = ({ isMobileFrame }) => {
 
   const handleTabClick = (tabId: ActiveTab) => {
     // Check if protected tab and currently locked
-    if ((tabId === 'accounting' || tabId === 'settings') && isPinEnabled && !isAdminUnlocked) {
+    if (
+      (tabId === 'accounting' || tabId === 'settings' || tabId === 'barber_panel') &&
+      isPinEnabled &&
+      !isAdminUnlocked
+    ) {
       setPendingTab(tabId);
       setShowPinModal(true);
       return;
@@ -70,6 +74,7 @@ export const Navigation: React.FC<NavigationProps> = ({ isMobileFrame }) => {
       id: 'barber_panel',
       label: '3 ช่าง',
       icon: Users,
+      isProtected: true,
     },
     {
       id: 'accounting',
@@ -106,7 +111,7 @@ export const Navigation: React.FC<NavigationProps> = ({ isMobileFrame }) => {
                 key={item.id}
                 type="button"
                 onClick={() => handleTabClick(item.id)}
-                className={`relative flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition-all duration-200 h-13 sm:h-14 ${
+                className={`relative flex flex-col items-center justify-center py-1.5 px-0.5 rounded-xl transition-all duration-200 h-14 ${
                   isActive
                     ? 'bg-amber-500/15 text-amber-400 font-semibold shadow-sm shadow-amber-500/10'
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/50 font-normal'
@@ -120,7 +125,7 @@ export const Navigation: React.FC<NavigationProps> = ({ isMobileFrame }) => {
                   />
                   {item.badge && (
                     <span
-                      className={`absolute -top-1.5 -right-3 text-[8px] px-1 py-0.2 rounded-full font-bold uppercase leading-none ${
+                      className={`absolute -top-1.5 -right-3.5 text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase leading-none ${
                         item.badge === 'สด'
                           ? 'bg-emerald-500 text-white animate-pulse shadow-sm shadow-emerald-500/40'
                           : 'bg-zinc-800 text-amber-300 border border-amber-500/30'
@@ -133,19 +138,21 @@ export const Navigation: React.FC<NavigationProps> = ({ isMobileFrame }) => {
                   {/* Lock Indicator icon for protected tabs */}
                   {isItemLocked && (
                     <span
-                      className="absolute -top-1 -left-2 w-3 h-3 bg-zinc-900 rounded-full border border-amber-500/50 flex items-center justify-center text-amber-400 shadow"
+                      className="absolute -top-1 -left-2 w-3.5 h-3.5 bg-zinc-900 rounded-full border border-amber-500/50 flex items-center justify-center text-amber-400 shadow"
                       title="มีรหัส Lock ป้องกัน"
                     >
-                      <Lock className="w-2 h-2" />
+                      <Lock className="w-2.5 h-2.5" />
                     </span>
                   )}
                 </div>
-                <span className="text-[10px] sm:text-[11px] mt-1 tracking-tight text-center truncate max-w-full block leading-none">
+                <span className="text-xs mt-1 text-center truncate max-w-full block leading-snug">
                   {item.label}
                 </span>
-                {isActive && (
-                  <div className="w-3.5 h-0.5 bg-amber-400 rounded-full mt-1" />
-                )}
+                <div
+                  className={`w-4 h-0.5 rounded-full mt-0.5 transition-colors ${
+                    isActive ? 'bg-amber-400' : 'bg-transparent'
+                  }`}
+                />
               </button>
             );
           })}

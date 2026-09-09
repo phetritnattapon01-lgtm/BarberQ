@@ -84,7 +84,7 @@ export const ServiceSelector: React.FC<ServiceSelectorProps> = ({
                 <div className="flex items-center space-x-2">
                   <h4 className="font-bold text-sm text-zinc-100">{service.name}</h4>
                   {service.tag && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                    <span className="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30 leading-normal">
                       {service.tag}
                     </span>
                   )}
@@ -92,9 +92,9 @@ export const ServiceSelector: React.FC<ServiceSelectorProps> = ({
                 <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
                   {service.description}
                 </p>
-                <div className="flex items-center space-x-3 mt-2 text-[11px] text-zinc-500">
+                <div className="flex items-center space-x-3 mt-2 text-xs text-zinc-400">
                   <span className="flex items-center space-x-1">
-                    <Clock className="w-3 h-3 text-zinc-400" />
+                    <Clock className="w-3.5 h-3.5 text-zinc-500" />
                     <span>ใช้เวลา ~{service.durationMinutes} นาที</span>
                   </span>
                   <span className="text-zinc-600">•</span>
@@ -105,7 +105,7 @@ export const ServiceSelector: React.FC<ServiceSelectorProps> = ({
               </div>
 
               <div className="flex flex-col items-end shrink-0 pl-2">
-                <span className="text-lg font-bold text-amber-400 font-mono">
+                <span className="text-lg font-bold text-amber-400 tabular-nums">
                   ฿{service.price.toLocaleString()}
                 </span>
                 <div

@@ -50,7 +50,13 @@ export const PromptPayCard: React.FC<PromptPayCardProps> = ({
   };
 
   const handleCopyRef = () => {
-    navigator.clipboard.writeText(referenceNumber);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(referenceNumber).catch(() => {});
+      }
+    } catch {
+      // Safe fallback
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -99,7 +105,7 @@ export const PromptPayCard: React.FC<PromptPayCardProps> = ({
         <p className="font-medium text-zinc-200">
           บัญชี: {shopSettings.promptPayName || 'บาร์เบอร์คิว แฮร์สตูดิโอ (BarberQ Studio)'}
         </p>
-        <p className="text-[11px] text-zinc-500 font-mono">
+        <p className="text-xs text-zinc-400 font-mono mt-0.5">
           พร้อมเพย์: {shopSettings.promptPayNumber || '089-123-4567'}
         </p>
       </div>
@@ -172,16 +178,16 @@ export const PromptPayCard: React.FC<PromptPayCardProps> = ({
           </svg>
         )}
 
-        <div className="mt-1 flex items-center justify-center space-x-1 text-[10px] text-zinc-600 font-mono font-semibold">
-          <QrCode className="w-3 h-3 text-blue-600" />
+        <div className="mt-1 flex items-center justify-center space-x-1 text-xs text-zinc-600 font-semibold">
+          <QrCode className="w-3.5 h-3.5 text-blue-600" />
           <span>THAI QR PAYMENT</span>
         </div>
       </div>
 
       {/* Quick QR Upload or Change Button */}
       <div className="flex items-center justify-center space-x-2 my-2 w-full">
-        <label className="cursor-pointer text-[11px] bg-zinc-800/80 hover:bg-zinc-700 text-amber-400 hover:text-amber-300 px-3 py-1.5 rounded-lg border border-zinc-700 flex items-center space-x-1.5 transition">
-          <Upload className="w-3 h-3" />
+        <label className="cursor-pointer text-xs font-medium bg-zinc-800/80 hover:bg-zinc-700 text-amber-400 hover:text-amber-300 px-3 py-1.5 rounded-lg border border-zinc-700 flex items-center space-x-1.5 transition">
+          <Upload className="w-3.5 h-3.5" />
           <span>{shopSettings.promptPayQrImage ? 'เปลี่ยนรูป QR Code' : '📷 ใส่ / อัปโหลดรูป QR Code'}</span>
           <input
             type="file"
@@ -215,17 +221,17 @@ export const PromptPayCard: React.FC<PromptPayCardProps> = ({
               setQrToast('คืนค่า QR Code อัตโนมัติเรียบร้อย');
               setTimeout(() => setQrToast(null), 3000);
             }}
-            className="text-[11px] bg-zinc-800/60 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-300 px-2 py-1.5 rounded-lg border border-zinc-700/60 flex items-center space-x-1 transition"
+            className="text-xs font-medium bg-zinc-800/60 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-300 px-2.5 py-1.5 rounded-lg border border-zinc-700/60 flex items-center space-x-1 transition"
             title="ใช้ QR จำลองของระบบ"
           >
-            <RotateCcw className="w-3 h-3" />
+            <RotateCcw className="w-3.5 h-3.5" />
             <span>ใช้ QR ระบบ</span>
           </button>
         )}
       </div>
 
       {qrToast && (
-        <div className="text-[11px] text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2.5 py-1 rounded-lg mt-1 animate-fadeIn">
+        <div className="text-xs text-emerald-400 bg-emerald-950/60 border border-emerald-800/50 px-2.5 py-1 rounded-lg mt-1 animate-fadeIn">
           {qrToast}
         </div>
       )}
@@ -233,7 +239,7 @@ export const PromptPayCard: React.FC<PromptPayCardProps> = ({
       {/* Amount Display */}
       <div className="my-2">
         <span className="text-xs text-zinc-400">ยอดที่ต้องชำระทันที</span>
-        <div className="text-2xl sm:text-3xl font-bold text-amber-400 font-mono">
+        <div className="text-2xl sm:text-3xl font-bold text-amber-400 tabular-nums">
           ฿{amount.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </div>
       </div>
@@ -241,7 +247,7 @@ export const PromptPayCard: React.FC<PromptPayCardProps> = ({
       {/* Ref Number Pill */}
       <div className="w-full bg-zinc-950/80 border border-zinc-800 rounded-xl p-2.5 my-2 flex items-center justify-between text-xs">
         <div className="text-left">
-          <span className="text-[10px] text-zinc-500 block">เลขอ้างอิง (Ref No.)</span>
+          <span className="text-xs text-zinc-400 block mb-0.5">เลขอ้างอิง (Ref No.)</span>
           <span className="font-mono text-zinc-300 font-medium tracking-wider">{referenceNumber}</span>
         </div>
         <button
@@ -264,15 +270,15 @@ export const PromptPayCard: React.FC<PromptPayCardProps> = ({
       </div>
 
       {/* Instruction Steps */}
-      <div className="text-[11px] text-zinc-400 text-left bg-zinc-800/40 p-3 rounded-xl w-full my-2 space-y-1">
+      <div className="text-xs text-zinc-400 text-left bg-zinc-800/40 p-3 rounded-xl w-full my-2 space-y-1.5 leading-relaxed">
         <div className="flex items-center text-zinc-300 font-medium mb-1">
-          <Smartphone className="w-3.5 h-3.5 mr-1 text-blue-400" />
+          <Smartphone className="w-4 h-4 mr-1 text-blue-400 shrink-0" />
           วิธีชำระเงินผ่านแอปธนาคาร:
         </div>
         <p>1. แคปภาพหน้าจอ หรือบันทึกรูป QR Code นี้</p>
         <p>2. เปิดแอปธนาคารใดก็ได้ (K PLUS, SCB EASY, Krungthai NEXT, ฯลฯ)</p>
         <p>3. เลือกเมนู "สแกนจ่าย" และเลือกรูปภาพ QR Code</p>
-        <p>4. ตรวจสอบยอดเงิน <strong className="text-amber-400">฿{amount.toFixed(2)}</strong> แล้วกดยืนยัน</p>
+        <p>4. ตรวจสอบยอดเงิน <strong className="text-amber-400 font-medium">฿{amount.toFixed(2)}</strong> แล้วกดยืนยัน</p>
       </div>
 
       {/* Action Buttons */}

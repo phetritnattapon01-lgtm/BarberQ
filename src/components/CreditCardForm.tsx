@@ -107,7 +107,7 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
                 <div className="bg-amber-300/60 rounded-xs" />
               </div>
             </div>
-            <span className="text-[10px] tracking-widest text-zinc-400 font-mono">SECURE CHIP</span>
+            <span className="text-xs tracking-widest text-zinc-400 font-mono">SECURE CHIP</span>
           </div>
           <span className="font-mono font-bold text-xs px-2.5 py-1 rounded bg-zinc-800/80 border border-zinc-700 text-amber-300">
             {getCardType(cardNumber)}
@@ -122,13 +122,13 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
 
         <div className="flex justify-between items-end text-xs">
           <div>
-            <span className="text-[9px] text-zinc-400 block tracking-wider uppercase">CARDHOLDER</span>
+            <span className="text-xs text-zinc-400 block tracking-wider uppercase font-mono">CARDHOLDER</span>
             <span className="font-medium tracking-wide text-zinc-200 uppercase truncate max-w-[170px] block">
               {cardHolder || 'YOUR NAME'}
             </span>
           </div>
           <div>
-            <span className="text-[9px] text-zinc-400 block tracking-wider uppercase">EXPIRES</span>
+            <span className="text-xs text-zinc-400 block tracking-wider uppercase font-mono">EXPIRES</span>
             <span className="font-mono text-zinc-200">{expiry || 'MM/YY'}</span>
           </div>
         </div>
@@ -141,7 +141,7 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
             <button
               type="button"
               onClick={fillDemoCard}
-              className="text-[11px] text-amber-400 hover:text-amber-300 underline"
+              className="text-xs text-amber-400 hover:text-amber-300 underline"
             >
               เติมข้อมูลทดสอบ (Demo)
             </button>
@@ -222,13 +222,13 @@ export const CreditCardForm: React.FC<CreditCardFormProps> = ({
               ) : (
                 <>
                   <Lock className="w-4 h-4" />
-                  <span>ชำระเงิน ฿{amount.toFixed(2)} อย่างปลอดภัย</span>
+                  <span>ชำระเงิน <span className="tabular-nums font-mono font-bold">฿{amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> อย่างปลอดภัย</span>
                 </>
               )}
             </button>
           </div>
 
-          <div className="flex items-center justify-center space-x-2 text-[11px] text-zinc-400 pt-1">
+          <div className="flex items-center justify-center space-x-2 text-xs text-zinc-400 pt-1">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
             <span>เข้ารหัส 256-Bit SSL & 3D Secure ปลอดภัยสูงสุด</span>
           </div>

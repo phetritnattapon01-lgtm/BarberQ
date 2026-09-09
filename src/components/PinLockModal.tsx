@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Shield, Lock, KeyRound, X, Delete, AlertCircle, CheckCircle2, HelpCircle } from 'lucide-react';
+import { Shield, Lock, KeyRound, X, Delete, AlertCircle, CheckCircle2, HelpCircle, Trash2 } from 'lucide-react';
 import { soundFx } from '../utils/audio';
 
 interface PinLockModalProps {
@@ -8,6 +8,10 @@ interface PinLockModalProps {
   onSuccess: () => void;
   targetTitle?: string;
   currentPin: string;
+  title?: string;
+  description?: React.ReactNode;
+  actionType?: 'default' | 'danger';
+  cancelText?: string;
 }
 
 export const PinLockModal: React.FC<PinLockModalProps> = ({
@@ -16,6 +20,10 @@ export const PinLockModal: React.FC<PinLockModalProps> = ({
   onSuccess,
   targetTitle = 'ระบบบัญชี & จัดการหลังบ้าน',
   currentPin,
+  title,
+  description,
+  actionType = 'default',
+  cancelText,
 }) => {
   const [pin, setPin] = useState('');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -96,30 +104,55 @@ export const PinLockModal: React.FC<PinLockModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fadeIn cursor-pointer"
+    >
       <div
-        className={`w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl relative transition-transform ${
+        onClick={(e) => e.stopPropagation()}
+        className={`w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-3xl p-6 shadow-2xl relative transition-transform cursor-default ${
           isShaking ? 'animate-shake' : ''
         }`}
       >
         {/* Close button */}
         <button
           type="button"
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-white rounded-full bg-zinc-800/80 hover:bg-zinc-700 transition"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose();
+          }}
+          className="absolute top-4 right-4 w-10 h-10 text-zinc-300 hover:text-white rounded-full bg-zinc-800 hover:bg-zinc-700 active:scale-90 border border-zinc-700/60 shadow-md transition flex items-center justify-center cursor-pointer z-20"
+          title="ปิดหน้าต่างยืนยันรหัส PIN"
+          aria-label="ปิด"
         >
-          <X className="w-4 h-4" />
+          <X className="w-5 h-5" />
         </button>
 
         {/* Header Icon */}
         <div className="flex flex-col items-center text-center space-y-2">
-          <div className="w-14 h-14 rounded-2xl bg-amber-500/15 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-lg shadow-amber-500/10">
-            <Lock className="w-7 h-7" />
+          <div
+            className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg ${
+              actionType === 'danger'
+                ? 'bg-rose-500/15 border border-rose-500/40 text-rose-400 shadow-rose-500/10'
+                : 'bg-amber-500/15 border border-amber-500/40 text-amber-400 shadow-amber-500/10'
+            }`}
+          >
+            {actionType === 'danger' ? <Trash2 className="w-7 h-7" /> : <Lock className="w-7 h-7" />}
           </div>
-          <h3 className="text-lg font-black text-zinc-100">ยืนยันรหัสผ่านความปลอดภัย</h3>
-          <p className="text-xs text-zinc-400 max-w-[260px]">
-            กรุณากรอกรหัส PIN 4 หลัก เพื่อเข้าถึง <strong className="text-amber-400">{targetTitle}</strong>
-          </p>
+          <h3 className="text-lg font-black text-zinc-100">
+            {title || (actionType === 'danger' ? 'ยืนยันรหัส PIN เพื่อลบคิว' : 'ยืนยันรหัสผ่านความปลอดภัย')}
+          </h3>
+          {description ? (
+            <div className="text-xs text-zinc-400 max-w-[280px]">{description}</div>
+          ) : (
+            <p className="text-xs text-zinc-400 max-w-[260px]">
+              กรุณากรอกรหัส PIN 4 หลัก เพื่อเข้าถึง <strong className="text-amber-400">{targetTitle}</strong>
+            </p>
+          )}
         </div>
 
         {/* PIN Dots Display */}
@@ -131,7 +164,9 @@ export const PinLockModal: React.FC<PinLockModalProps> = ({
                 key={index}
                 className={`w-4 h-4 rounded-full border-2 transition-all duration-200 ${
                   isFilled
-                    ? 'bg-amber-400 border-amber-400 scale-125 shadow-md shadow-amber-500/40'
+                    ? actionType === 'danger'
+                      ? 'bg-rose-500 border-rose-500 scale-125 shadow-md shadow-rose-500/40'
+                      : 'bg-amber-400 border-amber-400 scale-125 shadow-md shadow-amber-500/40'
                     : 'bg-zinc-950 border-zinc-700'
                 }`}
               />
@@ -196,7 +231,7 @@ export const PinLockModal: React.FC<PinLockModalProps> = ({
             onClick={onClose}
             className="mt-3 text-xs text-zinc-500 hover:text-zinc-300 underline"
           >
-            ยกเลิก / กลับไปหน้าจองคิว
+            {cancelText || (actionType === 'danger' ? 'ยกเลิก / ไม่ลบคิวนี้' : 'ยกเลิก / กลับไปหน้าจองคิว')}
           </button>
         </div>
       </div>

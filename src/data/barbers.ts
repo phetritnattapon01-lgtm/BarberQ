@@ -65,3 +65,9 @@ export const BARBERS: Barber[] = [
     isActive: true,
   },
 ];
+
+export const formatBarberDisplayName = (nickname?: string): string => {
+  if (!nickname) return '';
+  const trimmed = nickname.trim();
+  return trimmed.startsWith('ช่าง') ? trimmed : `ช่าง${trimmed}`;
+};

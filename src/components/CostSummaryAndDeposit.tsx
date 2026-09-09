@@ -19,6 +19,8 @@ import { useBooking } from '../context/BookingContext';
 import { BARBERS } from '../data/barbers';
 import { PaymentOption, PaymentMethodType } from '../types';
 import { soundFx } from '../utils/audio';
+import { LoyaltyCard } from './LoyaltyCard';
+import { LoyaltyHistoryModal } from './LoyaltyHistoryModal';
 
 interface CostSummaryAndDepositProps {
   onProceedToPayment: () => void;
@@ -45,15 +47,28 @@ export const CostSummaryAndDeposit: React.FC<CostSummaryAndDepositProps> = ({
     discountCode,
     discountAmount,
     applyDiscountCode,
+    shopSettings,
+    isRedeemingLoyalty,
+    setIsRedeemingLoyalty,
+    getCustomerLoyalty,
   } = useBooking();
 
   const [inputCoupon, setInputCoupon] = useState('');
   const [couponError, setCouponError] = useState('');
   const [formError, setFormError] = useState('');
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  // Loyalty Program calculation
+  const pointsReq = shopSettings.loyaltyPointsRequired || 10;
+  const loyaltyRewardDiscount = shopSettings.loyaltyRewardDiscount || 150;
+  const customerLoyalty = getCustomerLoyalty(customerPhone, customerName);
+  const canRedeemLoyalty = customerLoyalty.points >= pointsReq;
+  const effectiveLoyaltyDiscount = isRedeemingLoyalty && canRedeemLoyalty ? loyaltyRewardDiscount : 0;
 
   const barber = BARBERS.find((b) => b.id === selectedBarberId) || BARBERS[0];
   const servicePrice = selectedService ? selectedService.price : 0;
-  const finalTotal = Math.max(0, servicePrice - discountAmount);
+  const totalDiscounts = discountAmount + effectiveLoyaltyDiscount;
+  const finalTotal = Math.max(0, servicePrice - totalDiscounts);
 
   const isNoDeposit = paymentOption === 'no_deposit';
   const isDeposit50 = paymentOption === 'deposit_50';
@@ -148,6 +163,20 @@ export const CostSummaryAndDeposit: React.FC<CostSummaryAndDepositProps> = ({
         </div>
       </div>
 
+      {/* Digital Loyalty Stamp Card (ระบบสะสมแต้ม 10 แต้มรับส่วนลด) */}
+      {shopSettings.loyaltyEnabled !== false && (
+        <LoyaltyCard
+          loyalty={customerLoyalty}
+          isRedeeming={isRedeemingLoyalty}
+          onToggleRedeem={(checked) => {
+            soundFx.playClick();
+            setIsRedeemingLoyalty(checked);
+          }}
+          showRedeemAction={true}
+          onViewHistory={() => setShowHistoryModal(true)}
+        />
+      )}
+
       {/* Payment Options: No Deposit vs 50% Deposit vs Full 100% */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -155,7 +184,7 @@ export const CostSummaryAndDeposit: React.FC<CostSummaryAndDepositProps> = ({
             <Percent className="w-3.5 h-3.5 text-amber-400" />
             <span>รูปแบบการชำระเงินค่าบริการ</span>
           </h4>
-          <span className="text-[10px] bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2 py-0.5 rounded-full font-semibold">
+          <span className="text-xs bg-amber-500/15 text-amber-400 border border-amber-500/30 px-2.5 py-0.5 rounded-full font-semibold">
             เลือกได้ 3 รูปแบบ
           </span>
         </div>
@@ -185,13 +214,13 @@ export const CostSummaryAndDeposit: React.FC<CostSummaryAndDepositProps> = ({
                 </div>
                 <span className="font-bold text-xs sm:text-sm text-zinc-100">ไม่มีมัดจำ</span>
               </div>
-              <p className="text-[11px] text-zinc-400 mt-2 leading-relaxed">
+              <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
                 จองคิวทันทีโดยไม่ต้องโอนเงิน ชำระเต็มจำนวนหน้าร้านเมื่อตัดเสร็จ
               </p>
             </div>
             <div className="mt-3 pt-2 border-t border-zinc-800 flex justify-between items-baseline">
-              <span className="text-[10px] text-zinc-500">จ่ายตอนนี้</span>
-              <span className="text-sm font-bold text-zinc-300 font-mono">฿0</span>
+              <span className="text-xs text-zinc-500">จ่ายตอนนี้</span>
+              <span className="text-sm font-bold text-zinc-300 tabular-nums">฿0</span>
             </div>
           </div>
 
@@ -219,13 +248,13 @@ export const CostSummaryAndDeposit: React.FC<CostSummaryAndDepositProps> = ({
                 </div>
                 <span className="font-bold text-xs sm:text-sm text-zinc-100">มัดจำ 50% ล็อคคิว</span>
               </div>
-              <p className="text-[11px] text-zinc-400 mt-2 leading-relaxed">
+              <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
                 จ่ายเพียงครึ่งเดียวก่อนเพื่อยืนยันคิว ส่วนที่เหลือชำระหน้าร้าน
               </p>
             </div>
             <div className="mt-3 pt-2 border-t border-zinc-800 flex justify-between items-baseline">
-              <span className="text-[10px] text-zinc-500">จ่ายตอนนี้</span>
-              <span className="text-sm font-bold text-amber-400 font-mono">
+              <span className="text-xs text-zinc-500">จ่ายตอนนี้</span>
+              <span className="text-sm font-bold text-amber-400 tabular-nums">
                 ฿{Math.round(finalTotal * 0.5).toLocaleString()}
               </span>
             </div>
@@ -255,13 +284,13 @@ export const CostSummaryAndDeposit: React.FC<CostSummaryAndDepositProps> = ({
                 </div>
                 <span className="font-bold text-xs sm:text-sm text-zinc-100">ชำระเต็มจำนวน</span>
               </div>
-              <p className="text-[11px] text-zinc-400 mt-2 leading-relaxed">
+              <p className="text-xs text-zinc-400 mt-2 leading-relaxed">
                 จ่ายครบ 100% จบในรอบเดียว ไม่ต้องพกเงินสดหรือไม่ต้องโอนเพิ่มหน้าร้าน
               </p>
             </div>
             <div className="mt-3 pt-2 border-t border-zinc-800 flex justify-between items-baseline">
-              <span className="text-[10px] text-zinc-500">จ่ายตอนนี้</span>
-              <span className="text-sm font-bold text-emerald-400 font-mono">
+              <span className="text-xs text-zinc-500">จ่ายตอนนี้</span>
+              <span className="text-sm font-bold text-emerald-400 tabular-nums">
                 ฿{finalTotal.toLocaleString()}
               </span>
             </div>
@@ -297,7 +326,7 @@ export const CostSummaryAndDeposit: React.FC<CostSummaryAndDepositProps> = ({
               <QrCode className="w-5 h-5" />
             </div>
             <span className="text-xs font-bold">พร้อมเพย์ (PromptPay QR)</span>
-            <span className="text-[10px] text-blue-300/80 mt-0.5">
+            <span className="text-xs text-blue-300/80 mt-0.5">
               {isNoDeposit ? 'สแกนจ่ายเมื่อถึงร้าน' : 'สแกนผ่านทุกแอปธนาคาร'}
             </span>
           </button>
@@ -320,7 +349,7 @@ export const CostSummaryAndDeposit: React.FC<CostSummaryAndDepositProps> = ({
             <span className="text-xs font-bold">
               {isNoDeposit ? 'เงินสด / บัตรเครดิต' : 'บัตรเครดิต / เดบิต'}
             </span>
-            <span className="text-[10px] text-amber-300/80 mt-0.5">
+            <span className="text-xs text-amber-300/80 mt-0.5">
               {isNoDeposit ? 'ชำระที่เคาน์เตอร์ร้าน' : 'Visa, Mastercard, JCB'}
             </span>
           </button>
@@ -392,6 +421,16 @@ export const CostSummaryAndDeposit: React.FC<CostSummaryAndDepositProps> = ({
             </div>
           )}
 
+          {effectiveLoyaltyDiscount > 0 && (
+            <div className="flex justify-between text-emerald-400 font-semibold bg-emerald-950/30 p-2 rounded-lg border border-emerald-500/30">
+              <span className="flex items-center space-x-1">
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>สิทธิ์สะสมครบ 10 แต้ม ({shopSettings.loyaltyRewardTitle || 'ส่วนลดพิเศษ'}):</span>
+              </span>
+              <span className="font-mono text-emerald-300">-฿{effectiveLoyaltyDiscount.toLocaleString()}</span>
+            </div>
+          )}
+
           <div className="flex justify-between text-zinc-300 pt-2 border-t border-zinc-800/60 font-medium">
             <span>ยอดรวมทั้งสิ้น (Total):</span>
             <span className="font-mono text-base font-bold text-zinc-100">฿{finalTotal.toLocaleString()}</span>
@@ -415,27 +454,27 @@ export const CostSummaryAndDeposit: React.FC<CostSummaryAndDepositProps> = ({
             </div>
 
             {isNoDeposit && (
-              <div className="flex justify-between text-[11px] text-zinc-400 pt-1 border-t border-zinc-800/80">
+              <div className="flex justify-between text-xs text-zinc-400 pt-1.5 border-t border-zinc-800/80">
                 <span>ยอดชำระหน้าร้านเมื่อถึงคิว (100%):</span>
-                <span className="font-mono font-bold text-amber-400">
+                <span className="font-bold text-amber-400 tabular-nums">
                   ฿{finalTotal.toLocaleString()}
                 </span>
               </div>
             )}
 
             {isDeposit50 && (
-              <div className="flex justify-between text-[11px] text-zinc-400 pt-1 border-t border-zinc-800/80">
+              <div className="flex justify-between text-xs text-zinc-400 pt-1.5 border-t border-zinc-800/80">
                 <span>ยอดคงเหลือชำระหน้าร้านหลังบริการ:</span>
-                <span className="font-mono font-bold text-zinc-300">
+                <span className="font-bold text-zinc-300 tabular-nums">
                   ฿{amountRemainingAtShop.toLocaleString()}
                 </span>
               </div>
             )}
 
             {isFull100 && (
-              <div className="flex justify-between text-[11px] text-emerald-400/90 pt-1 border-t border-zinc-800/80">
+              <div className="flex justify-between text-xs text-emerald-400/90 pt-1.5 border-t border-zinc-800/80">
                 <span>ยอดคงเหลือชำระหน้าร้าน:</span>
-                <span className="font-mono font-bold text-emerald-400">
+                <span className="font-bold text-emerald-400 tabular-nums">
                   ฿0 (ชำระครบถ้วนแล้ว)
                 </span>
               </div>
@@ -444,8 +483,8 @@ export const CostSummaryAndDeposit: React.FC<CostSummaryAndDepositProps> = ({
         </div>
 
         {/* Security & Guarantee note */}
-        <div className="flex items-center space-x-1.5 text-[10px] text-zinc-500 pt-1">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+        <div className="flex items-center space-x-1.5 text-xs text-zinc-400 pt-1">
+          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
           <span>
             {isNoDeposit
               ? 'จองฟรีล็อคคิวทันที กรุณามาถึงก่อนเวลา 5-10 นาทีเพื่อความรวดเร็ว'
@@ -472,6 +511,13 @@ export const CostSummaryAndDeposit: React.FC<CostSummaryAndDepositProps> = ({
           <span>→</span>
         </button>
       </div>
+
+      {/* Loyalty Point History Modal */}
+      <LoyaltyHistoryModal
+        isOpen={showHistoryModal}
+        onClose={() => setShowHistoryModal(false)}
+        loyalty={customerLoyalty}
+      />
     </div>
   );
 };

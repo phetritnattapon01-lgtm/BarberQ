@@ -71,9 +71,9 @@ export const BarberSelector: React.FC<BarberSelectorProps> = ({
             >
               {/* Closed Barber Top Banner */}
               {isClosed && (
-                <div className="absolute top-0 left-0 right-0 bg-rose-950/90 border-b border-rose-500/30 text-rose-300 text-[10px] font-bold py-1 px-2.5 flex items-center justify-between z-10">
-                  <span className="flex items-center space-x-1">
-                    <Ban className="w-3 h-3 text-rose-400" />
+                <div className="absolute top-0 left-0 right-0 bg-rose-950/90 border-b border-rose-500/30 text-rose-300 text-xs font-semibold py-1 px-3 flex items-center justify-between z-10">
+                  <span className="flex items-center space-x-1.5">
+                    <Ban className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                     <span>ปิดรับคิวชั่วคราว (พักงาน/ลา)</span>
                   </span>
                 </div>
@@ -87,11 +87,11 @@ export const BarberSelector: React.FC<BarberSelectorProps> = ({
               )}
 
               {/* Badge Tag */}
-              <div className={`flex items-center space-x-2 mb-3 ${isClosed ? 'mt-4' : ''}`}>
-                <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-zinc-800/90 text-amber-400 border border-zinc-700/60">
+              <div className={`flex items-center space-x-2 mb-3 ${isClosed ? 'mt-5' : ''}`}>
+                <span className="text-xs font-medium px-2.5 py-0.5 rounded-md bg-zinc-800 text-amber-400 border border-zinc-700/60 leading-normal">
                   เก้าอี้ #{barber.chairNumber}
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30 leading-normal">
                   {barber.badge}
                 </span>
               </div>
@@ -104,8 +104,8 @@ export const BarberSelector: React.FC<BarberSelectorProps> = ({
                     alt={barber.name}
                     className="w-16 h-16 rounded-2xl object-cover border-2 border-zinc-700/80 shadow-md"
                   />
-                  <div className="absolute -bottom-1 -right-1 bg-zinc-900 border border-zinc-700 px-1.5 py-0.2 rounded-full flex items-center space-x-0.5 text-[10px] text-amber-400 font-bold">
-                    <Star className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
+                  <div className="absolute -bottom-1 -right-1 bg-zinc-900 border border-zinc-700 px-1.5 py-0.5 rounded-full flex items-center space-x-0.5 text-xs text-amber-400 font-semibold tabular-nums">
+                    <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
                     <span>{barber.rating}</span>
                   </div>
                 </div>
@@ -114,9 +114,9 @@ export const BarberSelector: React.FC<BarberSelectorProps> = ({
                   <h4 className="font-bold text-sm text-zinc-100 truncate">
                     {barber.nickname}
                   </h4>
-                  <p className="text-[11px] text-zinc-400 truncate">{barber.title}</p>
-                  <p className="text-[11px] text-zinc-500 mt-1 flex items-center space-x-1">
-                    <Clock className="w-3 h-3 mr-0.5 text-zinc-400" />
+                  <p className="text-xs text-zinc-400 truncate mt-0.5">{barber.title}</p>
+                  <p className="text-xs text-zinc-400 mt-1 flex items-center space-x-1">
+                    <Clock className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
                     <span>เข้างาน: {barber.workingHours} น.</span>
                   </p>
                 </div>
@@ -132,7 +132,7 @@ export const BarberSelector: React.FC<BarberSelectorProps> = ({
                 {barber.specialty.slice(0, 3).map((spec, i) => (
                   <span
                     key={i}
-                    className="text-[10px] px-2 py-0.5 rounded-full bg-zinc-800/80 text-zinc-300 border border-zinc-700/50"
+                    className="text-xs px-2 py-0.5 rounded-md bg-zinc-800/80 text-zinc-300 border border-zinc-700/50 leading-normal font-normal"
                   >
                     {spec}
                   </span>
@@ -146,7 +146,7 @@ export const BarberSelector: React.FC<BarberSelectorProps> = ({
                   e.stopPropagation();
                   setActiveModalBarber(barber);
                 }}
-                className="mt-3 w-full py-1.5 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 text-[11px] rounded-xl flex items-center justify-center space-x-1 transition border border-zinc-700/30"
+                className="mt-3 w-full py-2 bg-zinc-800/50 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs rounded-xl flex items-center justify-center space-x-1.5 transition border border-zinc-700/30"
               >
                 <Info className="w-3.5 h-3.5 text-amber-400" />
                 <span>ดูผลงานและประวัติช่าง</span>
@@ -190,30 +190,30 @@ export const BarberSelector: React.FC<BarberSelectorProps> = ({
               </div>
 
               <div className="mt-3">
-                <h3 className="text-lg font-bold text-zinc-100">{activeModalBarber.name}</h3>
+                <h3 className="text-base sm:text-lg font-bold text-zinc-100">{activeModalBarber.name}</h3>
                 <p className="text-xs text-amber-400 font-medium">{activeModalBarber.title}</p>
               </div>
 
-              <p className="text-xs text-zinc-300 mt-3 leading-relaxed">
+              <p className="text-xs text-zinc-300 mt-2.5 leading-relaxed">
                 {activeModalBarber.bio}
               </p>
 
-              <div className="grid grid-cols-2 gap-2 my-4 p-3 bg-zinc-950/70 rounded-2xl border border-zinc-800 text-xs">
+              <div className="grid grid-cols-2 gap-2.5 my-4 p-3.5 bg-zinc-950/70 rounded-2xl border border-zinc-800 text-xs">
                 <div>
-                  <span className="text-zinc-500 block text-[10px]">ประสบการณ์</span>
-                  <span className="font-semibold text-zinc-200">{activeModalBarber.experienceYears} ปี</span>
+                  <span className="text-zinc-500 block text-xs mb-0.5">ประสบการณ์</span>
+                  <span className="font-semibold text-zinc-200 text-sm tabular-nums">{activeModalBarber.experienceYears} ปี</span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block text-[10px]">ตัดผมสำเร็จแล้ว</span>
-                  <span className="font-semibold text-zinc-200">{activeModalBarber.completedCuts.toLocaleString()} หัว</span>
+                  <span className="text-zinc-500 block text-xs mb-0.5">ตัดผมสำเร็จแล้ว</span>
+                  <span className="font-semibold text-zinc-200 text-sm tabular-nums">{activeModalBarber.completedCuts.toLocaleString()} หัว</span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block text-[10px]">ประจำเก้าอี้</span>
-                  <span className="font-semibold text-amber-400">Station #{activeModalBarber.chairNumber}</span>
+                  <span className="text-zinc-500 block text-xs mb-0.5">ประจำเก้าอี้</span>
+                  <span className="font-semibold text-amber-400 text-sm">Station #{activeModalBarber.chairNumber}</span>
                 </div>
                 <div>
-                  <span className="text-zinc-500 block text-[10px]">เวลาปฏิบัติงาน</span>
-                  <span className="font-semibold text-zinc-200">{activeModalBarber.workingHours} น.</span>
+                  <span className="text-zinc-500 block text-xs mb-0.5">เวลาปฏิบัติงาน</span>
+                  <span className="font-semibold text-zinc-200 text-sm">{activeModalBarber.workingHours} น.</span>
                 </div>
               </div>
 

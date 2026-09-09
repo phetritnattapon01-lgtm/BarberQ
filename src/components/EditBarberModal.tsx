@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { Barber, BarberId } from '../types';
 import { soundFx } from '../utils/audio';
+import { useBooking } from '../context/BookingContext';
 
 interface EditBarberModalProps {
   barber: Barber | null;
@@ -60,13 +61,15 @@ export const EditBarberModal: React.FC<EditBarberModalProps> = ({
   onSave,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { shopSettings } = useBooking();
+  const defaultWorkingHours = `${shopSettings?.openTime || '10:00'} - ${shopSettings?.closeTime || '20:30'}`;
 
   const [name, setName] = useState('');
   const [nickname, setNickname] = useState('');
   const [title, setTitle] = useState('');
   const [badge, setBadge] = useState('');
   const [chairNumber, setChairNumber] = useState(1);
-  const [workingHours, setWorkingHours] = useState('10:00 - 20:30');
+  const [workingHours, setWorkingHours] = useState(defaultWorkingHours);
   const [commissionRate, setCommissionRate] = useState(60);
   const [avatarUrl, setAvatarUrl] = useState('');
   const [experienceYears, setExperienceYears] = useState(5);
@@ -84,7 +87,7 @@ export const EditBarberModal: React.FC<EditBarberModalProps> = ({
       setTitle(barber.title || '');
       setBadge(barber.badge || '🏆 ช่างยอดนิยม');
       setChairNumber(barber.chairNumber || 1);
-      setWorkingHours(barber.workingHours || '10:00 - 20:30');
+      setWorkingHours(barber.workingHours || defaultWorkingHours);
       setCommissionRate(barber.commissionRate ?? 60);
       setAvatarUrl(barber.avatarUrl || '');
       setExperienceYears(barber.experienceYears || 5);
@@ -93,7 +96,19 @@ export const EditBarberModal: React.FC<EditBarberModalProps> = ({
       setIsActive(barber.isActive !== false);
       setUploadError(null);
     }
-  }, [barber]);
+  }, [barber, defaultWorkingHours]);
+
+  // Close on Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
   if (!isOpen || !barber) return null;
 
@@ -138,7 +153,7 @@ export const EditBarberModal: React.FC<EditBarberModalProps> = ({
       title: title.trim() || barber.title,
       badge: badge.trim() || barber.badge,
       chairNumber: Number(chairNumber) || 1,
-      workingHours: workingHours.trim() || '10:00 - 20:30',
+      workingHours: workingHours.trim() || defaultWorkingHours,
       commissionRate: Math.min(100, Math.max(0, Number(commissionRate))),
       avatarUrl: avatarUrl.trim() || barber.avatarUrl,
       experienceYears: Number(experienceYears) || 1,
@@ -153,8 +168,18 @@ export const EditBarberModal: React.FC<EditBarberModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto animate-fadeIn">
-      <div className="relative w-full max-w-xl bg-zinc-900 border border-zinc-700/80 rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md overflow-y-auto animate-fadeIn cursor-pointer"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="cursor-default relative w-full max-w-xl bg-zinc-900 border border-zinc-700/80 rounded-3xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col"
+      >
         {/* Modal Header */}
         <div className="p-4 sm:p-5 border-b border-zinc-800 bg-zinc-950/80 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-3">
@@ -175,8 +200,13 @@ export const EditBarberModal: React.FC<EditBarberModalProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
-            className="p-2 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition"
+            onClick={(e) => {
+              e.stopPropagation();
+              onClose();
+            }}
+            className="w-10 h-10 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 flex items-center justify-center transition cursor-pointer shrink-0 z-10"
+            title="ปิดหน้าต่าง"
+            aria-label="ปิด"
           >
             <X className="w-5 h-5" />
           </button>
@@ -414,7 +444,7 @@ export const EditBarberModal: React.FC<EditBarberModalProps> = ({
                 type="text"
                 value={workingHours}
                 onChange={(e) => setWorkingHours(e.target.value)}
-                placeholder="10:00 - 20:30"
+                placeholder={defaultWorkingHours}
                 className="w-full px-3 py-2 bg-zinc-950 border border-zinc-700 rounded-xl text-xs font-mono text-zinc-200 focus:outline-none focus:border-amber-500"
               />
             </div>

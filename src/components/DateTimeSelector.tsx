@@ -20,7 +20,32 @@ export const DateTimeSelector: React.FC<DateTimeSelectorProps> = ({
   onSelectDate,
   onSelectTimeSlot,
 }) => {
-  const { bookings } = useBooking();
+  const { bookings, shopSettings } = useBooking();
+
+  // Dynamic time slots based on configured shop opening & closing hours
+  const timeSlots = React.useMemo(() => {
+    if (!shopSettings?.openTime || !shopSettings?.closeTime) return TIME_SLOTS;
+    try {
+      const [openH, openM] = shopSettings.openTime.split(':').map((v) => parseInt(v, 10) || 0);
+      const [closeH, closeM] = shopSettings.closeTime.split(':').map((v) => parseInt(v, 10) || 0);
+      const openMinutes = openH * 60 + openM;
+      const closeMinutes = closeH * 60 + closeM;
+      const duration = shopSettings.slotDurationMinutes || 60;
+
+      if (closeMinutes <= openMinutes) return TIME_SLOTS;
+
+      const slots: string[] = [];
+      // Generate slots up to closeTime (allowing last slot before closing)
+      for (let m = openMinutes; m <= closeMinutes - 30; m += duration) {
+        const h = Math.floor(m / 60);
+        const min = m % 60;
+        slots.push(`${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
+      }
+      return slots.length > 0 ? slots : TIME_SLOTS;
+    } catch {
+      return TIME_SLOTS;
+    }
+  }, [shopSettings?.openTime, shopSettings?.closeTime, shopSettings?.slotDurationMinutes]);
 
   // Generate next 7 days dates
   const days = Array.from({ length: 7 }, (_, i) => {
@@ -110,7 +135,12 @@ export const DateTimeSelector: React.FC<DateTimeSelectorProps> = ({
       {/* Time Slots Grid */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-zinc-300">2. เลือกรอบเวลา (Slot)</span>
+          <div className="flex items-center space-x-2">
+            <span className="text-xs font-semibold text-zinc-300">2. เลือกรอบเวลา (Slot)</span>
+            <span className="text-[10px] text-amber-400/90 font-mono bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+              {shopSettings?.openTime || '10:00'} - {shopSettings?.closeTime || '20:30'} น.
+            </span>
+          </div>
           <div className="flex items-center space-x-3 text-[10px] text-zinc-400">
             <span className="flex items-center space-x-1">
               <span className="w-2 h-2 rounded-full bg-amber-400 inline-block" />
@@ -124,7 +154,7 @@ export const DateTimeSelector: React.FC<DateTimeSelectorProps> = ({
         </div>
 
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-          {TIME_SLOTS.map((slot) => {
+          {timeSlots.map((slot) => {
             const isBooked = bookedSlots.includes(slot);
             const isSelected = selectedTimeSlot === slot && !isBooked;
 
