@@ -126,15 +126,19 @@ export const Header: React.FC<HeaderProps> = ({ isMobileFrame, setIsMobileFrame 
             <button
               type="button"
               onClick={() => setSoundEnabled(!soundEnabled)}
-              title={soundEnabled ? 'ปิดเสียงเอฟเฟกต์' : 'เปิดเสียงเอฟเฟกต์'}
-              aria-label="เปิด-ปิดเสียง"
-              className={`w-9 h-9 min-w-[36px] min-h-[36px] max-w-[36px] max-h-[36px] rounded-xl border flex items-center justify-center shrink-0 transition cursor-pointer box-border ${
+              title={soundEnabled ? 'ปิดเสียงแจ้งเตือน (เปิดอยู่ 🟢)' : 'เปิดเสียงแจ้งเตือน (ปิดอยู่ ⚪)'}
+              aria-label="เปิด-ปิดเสียงแจ้งเตือน"
+              className={`w-9 h-9 min-w-[36px] min-h-[36px] max-w-[36px] max-h-[36px] rounded-xl border flex items-center justify-center shrink-0 transition cursor-pointer box-border relative active:scale-90 ${
                 soundEnabled
-                  ? 'bg-zinc-900 border-zinc-700 text-amber-400'
+                  ? 'bg-zinc-900 border-amber-500/40 text-amber-400 shadow-sm shadow-amber-500/10'
                   : 'bg-zinc-900/60 border-zinc-800 text-zinc-500 hover:text-zinc-400'
               }`}
             >
-              {soundEnabled ? <Volume2 className="w-4 h-4 shrink-0" /> : <VolumeX className="w-4 h-4 shrink-0" />}
+              {soundEnabled ? (
+                <Volume2 className="w-4 h-4 shrink-0" />
+              ) : (
+                <VolumeX className="w-4 h-4 shrink-0" />
+              )}
             </button>
 
             {/* 5. Notification Bell with Safe Badge Placement */}

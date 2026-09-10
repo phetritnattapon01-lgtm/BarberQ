@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Bell,
   Clock,
@@ -12,9 +12,11 @@ import {
   AlertCircle,
   Armchair,
   CreditCard,
+  Volume2,
 } from 'lucide-react';
 import { Booking } from '../types';
 import { useBooking } from '../context/BookingContext';
+import { soundFx } from '../utils/audio';
 
 interface AdvanceQueueAlertModalProps {
   alertData: { booking: Booking; minutesLeft: number } | null;
@@ -25,7 +27,24 @@ export const AdvanceQueueAlertModal: React.FC<AdvanceQueueAlertModalProps> = ({
   alertData,
   onClose,
 }) => {
-  const { setActiveBookingId, setActiveTab } = useBooking();
+  const { setActiveBookingId, setActiveTab, soundEnabled } = useBooking();
+  const [isPlayingSound, setIsPlayingSound] = useState(false);
+
+  // Play queue alert sound on modal opening
+  useEffect(() => {
+    if (alertData && soundEnabled) {
+      soundFx.unlock().then(() => {
+        soundFx.playQueueAlert();
+      });
+    }
+  }, [alertData, soundEnabled]);
+
+  const handlePlaySoundAgain = async () => {
+    setIsPlayingSound(true);
+    await soundFx.unlock();
+    soundFx.playQueueAlert();
+    setTimeout(() => setIsPlayingSound(false), 1200);
+  };
 
   // Close on Escape
   useEffect(() => {
@@ -89,14 +108,30 @@ export const AdvanceQueueAlertModal: React.FC<AdvanceQueueAlertModalProps> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-100 flex items-center justify-center transition cursor-pointer"
-            title="ปิด"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center space-x-1.5">
+            <button
+              type="button"
+              onClick={handlePlaySoundAgain}
+              className={`p-2 rounded-xl border transition cursor-pointer flex items-center justify-center ${
+                isPlayingSound
+                  ? 'bg-amber-500 text-zinc-950 border-amber-400 scale-105'
+                  : 'bg-zinc-800/80 hover:bg-zinc-700 text-amber-400 border-zinc-700/60'
+              }`}
+              title="กดเพื่อเล่นเสียงกระดิ่งแจ้งเตือนซ้ำ"
+              aria-label="เล่นเสียงแจ้งเตือน"
+            >
+              <Volume2 className={`w-4 h-4 ${isPlayingSound ? 'animate-bounce' : ''}`} />
+            </button>
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-full bg-zinc-800/80 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-100 flex items-center justify-center transition cursor-pointer"
+              title="ปิด"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Main Queue Ticket Card */}

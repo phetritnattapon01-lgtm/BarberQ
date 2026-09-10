@@ -1472,25 +1472,48 @@ export const AdminSettings: React.FC = () => {
                       <input
                         type="checkbox"
                         checked={localSettings.advanceNotificationSound !== false}
-                        onChange={(e) =>
-                          setLocalSettings((prev) => ({ ...prev, advanceNotificationSound: e.target.checked }))
-                        }
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setLocalSettings((prev) => ({ ...prev, advanceNotificationSound: checked }));
+                          updateShopSettings({ advanceNotificationSound: checked });
+                          if (checked) {
+                            soundFx.unlock().then(() => {
+                              soundFx.playQueueAlert();
+                            });
+                          }
+                        }}
                         className="w-4 h-4 rounded text-amber-500 accent-amber-500 bg-zinc-950 border-zinc-700 focus:ring-amber-500"
                       />
                       <Volume2 className="w-4 h-4 text-amber-400" />
                       <span>เปิดเสียงแจ้งเตือนกระดิ่ง (Dual-tone Chime)</span>
                     </label>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        triggerAdvanceQueueAlert(undefined, localSettings.advanceNotificationMinutes || 15);
-                      }}
-                      className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 active:scale-95 text-zinc-950 font-bold text-xs rounded-xl transition shadow-md shadow-amber-500/20 flex items-center space-x-1.5 cursor-pointer shrink-0"
-                    >
-                      <Bell className="w-3.5 h-3.5" />
-                      <span>ทดสอบส่งการแจ้งเตือนทันที (15 นาที)</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await soundFx.unlock();
+                          soundFx.playQueueAlert();
+                        }}
+                        className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 active:scale-95 text-amber-400 border border-zinc-700 font-bold text-xs rounded-xl transition flex items-center space-x-1.5 cursor-pointer shrink-0"
+                        title="กดเพื่อทดสอบฟังเสียงกระดิ่งเตือนคิว"
+                      >
+                        <Volume2 className="w-3.5 h-3.5" />
+                        <span>ทดสอบฟังเสียง</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await soundFx.unlock();
+                          triggerAdvanceQueueAlert(undefined, localSettings.advanceNotificationMinutes || 15);
+                        }}
+                        className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 active:scale-95 text-zinc-950 font-bold text-xs rounded-xl transition shadow-md shadow-amber-500/20 flex items-center space-x-1.5 cursor-pointer shrink-0"
+                      >
+                        <Bell className="w-3.5 h-3.5" />
+                        <span>ทดสอบส่งการแจ้งเตือนทันที (15 นาที)</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
-import { X, CheckCheck, Bell, Sparkles, Clock, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { X, CheckCheck, Bell, Sparkles, Clock, AlertTriangle, CheckCircle2, Volume2, VolumeX, Check } from 'lucide-react';
 import { useBooking } from '../context/BookingContext';
+import { soundFx } from '../utils/audio';
 
 interface NotificationDrawerProps {
   isOpen: boolean;
@@ -8,7 +9,27 @@ interface NotificationDrawerProps {
 }
 
 export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, onClose }) => {
-  const { notifications, markNotificationAsRead, markAllNotificationsAsRead, setActiveTab, setActiveBookingId } = useBooking();
+  const {
+    notifications,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+    setActiveTab,
+    setActiveBookingId,
+    soundEnabled,
+    setSoundEnabled,
+  } = useBooking();
+
+  const [testedSound, setTestedSound] = useState(false);
+
+  const handleTestSound = async () => {
+    if (!soundEnabled) {
+      setSoundEnabled(true);
+    }
+    await soundFx.unlock();
+    soundFx.playNotification();
+    setTestedSound(true);
+    setTimeout(() => setTestedSound(false), 2000);
+  };
 
   // Close on Escape key
   useEffect(() => {
@@ -83,6 +104,67 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
           </div>
         </div>
 
+        {/* Sound Status & Instant Test Bar */}
+        <div className="px-4 py-2.5 bg-zinc-900/90 border-b border-zinc-800 flex items-center justify-between text-xs gap-2">
+          <div className="flex items-center space-x-2 min-w-0">
+            <span
+              className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                soundEnabled ? 'bg-emerald-400 shadow-sm shadow-emerald-500/50 animate-pulse' : 'bg-zinc-600'
+              }`}
+            />
+            <span className="text-zinc-300 font-medium truncate">
+              {soundEnabled ? 'เสียงแจ้งเตือน: เปิดอยู่' : 'เสียงแจ้งเตือน: ปิดอยู่'}
+            </span>
+          </div>
+
+          <div className="flex items-center space-x-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className={`text-[11px] px-2.5 py-1 rounded-lg font-medium transition cursor-pointer flex items-center space-x-1 border ${
+                soundEnabled
+                  ? 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:text-white'
+                  : 'bg-amber-500/10 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
+              }`}
+            >
+              {soundEnabled ? (
+                <>
+                  <VolumeX className="w-3 h-3 text-zinc-400" />
+                  <span>ปิดเสียง</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 className="w-3 h-3 text-amber-400" />
+                  <span>เปิดเสียง</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleTestSound}
+              className={`text-[11px] px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer flex items-center space-x-1 shadow-sm active:scale-95 border ${
+                testedSound
+                  ? 'bg-emerald-500 text-zinc-950 border-emerald-400 font-bold'
+                  : 'bg-amber-500 hover:bg-amber-400 text-zinc-950 border-amber-400'
+              }`}
+              title="กดเพื่อทดสอบฟังเสียงแจ้งเตือน"
+            >
+              {testedSound ? (
+                <>
+                  <Check className="w-3 h-3" />
+                  <span>ดังแล้ว! 🔔</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 className="w-3 h-3" />
+                  <span>ทดสอบเสียง</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
         {/* Notification List */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {notifications.length === 0 ? (
@@ -92,9 +174,9 @@ export const NotificationDrawer: React.FC<NotificationDrawerProps> = ({ isOpen, 
               <p className="text-xs text-zinc-600 mt-1">การอัปเดตคิวตัดผมจะแสดงที่นี่แบบเรียลไทม์</p>
             </div>
           ) : (
-            notifications.map((n) => (
+            notifications.map((n, idx) => (
               <div
-                key={n.id}
+                key={`${n.id}-${idx}`}
                 onClick={() => handleNotificationClick(n)}
                 className={`p-3.5 rounded-2xl border transition cursor-pointer relative overflow-hidden ${
                   n.read

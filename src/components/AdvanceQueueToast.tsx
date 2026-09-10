@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
-import { Bell, Clock, X, ExternalLink, Scissors } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Bell, Clock, X, ExternalLink, Scissors, Volume2 } from 'lucide-react';
 import { Booking } from '../types';
 import { useBooking } from '../context/BookingContext';
+import { soundFx } from '../utils/audio';
 
 interface AdvanceQueueToastProps {
   alertData: { booking: Booking; minutesLeft: number } | null;
@@ -14,7 +15,8 @@ export const AdvanceQueueToast: React.FC<AdvanceQueueToastProps> = ({
   onClose,
   onOpenModal,
 }) => {
-  const { setActiveBookingId, setActiveTab } = useBooking();
+  const { setActiveBookingId, setActiveTab, soundEnabled } = useBooking();
+  const [isPlayingSound, setIsPlayingSound] = useState(false);
 
   // Auto dismiss after 14 seconds
   useEffect(() => {
@@ -33,6 +35,14 @@ export const AdvanceQueueToast: React.FC<AdvanceQueueToastProps> = ({
     setActiveBookingId(booking.id);
     setActiveTab('live_queue');
     onClose();
+  };
+
+  const handlePlaySound = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsPlayingSound(true);
+    await soundFx.unlock();
+    soundFx.playQueueAlert();
+    setTimeout(() => setIsPlayingSound(false), 1000);
   };
 
   return (
@@ -67,6 +77,20 @@ export const AdvanceQueueToast: React.FC<AdvanceQueueToastProps> = ({
 
         {/* Action buttons */}
         <div className="flex items-center space-x-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={handlePlaySound}
+            className={`p-1.5 rounded-lg border transition cursor-pointer flex items-center justify-center ${
+              isPlayingSound
+                ? 'bg-amber-500 text-zinc-950 border-amber-400'
+                : 'bg-zinc-800/80 hover:bg-zinc-700 text-amber-400 border-zinc-700'
+            }`}
+            title="กดเพื่อฟังเสียงเตือนคิวอีกครั้ง"
+            aria-label="ฟังเสียงเตือน"
+          >
+            <Volume2 className="w-3.5 h-3.5" />
+          </button>
+
           <button
             type="button"
             onClick={handleGoToQueue}

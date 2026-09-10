@@ -169,6 +169,7 @@ const STORAGE_KEY_SERVICES = 'barberq_services_v3';
 const STORAGE_KEY_SETTINGS = 'barberq_settings_v3';
 const STORAGE_KEY_TRANSACTIONS = 'barberq_transactions_v3';
 const STORAGE_KEY_LOYALTY = 'barberq_loyalty_v3';
+const STORAGE_KEY_SOUND = 'barberq_sound_enabled_v3';
 
 const initialSampleBookings: Booking[] = [
   {
@@ -381,33 +382,61 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
   const [notifications, setNotifications] = useState<AppNotification[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY_NOTIFS);
-      return saved
-        ? JSON.parse(saved)
-        : [
-            {
-              id: 'notif-1',
-              title: '💈 ยินดีต้อนรับสู่ BarberQ',
-              message: 'ระบบจองคิวมือถือพร้อมคำนวณค่าคอมมิชชั่นช่าง และหักมัดจำ 50% อัตโนมัติ',
-              type: 'info',
-              timestamp: 'เมื่อสักครู่',
-              read: false,
-            },
-            {
-              id: 'notif-2',
-              bookingId: 'bk-101',
-              title: '✂️ คิว BQ-001 กำลังเริ่มตัดแล้ว',
-              message: 'ช่างท็อปเริ่มให้บริการ Skin Fade ให้คุณธนกฤต (ค่าคอม 60%: ฿270)',
-              type: 'status_change',
-              timestamp: '5 นาทีที่แล้ว',
-              read: false,
-            },
-          ];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          const seenIds = new Set<string>();
+          const sanitized: AppNotification[] = [];
+          for (const item of parsed) {
+            if (!item || typeof item !== 'object') continue;
+            let id = String(item.id || '');
+            if (!id || seenIds.has(id)) {
+              id = `notif-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+            }
+            seenIds.add(id);
+            sanitized.push({ ...item, id });
+          }
+          return sanitized;
+        }
+      }
+      return [
+        {
+          id: 'notif-1',
+          title: '💈 ยินดีต้อนรับสู่ BarberQ',
+          message: 'ระบบจองคิวมือถือพร้อมคำนวณค่าคอมมิชชั่นช่าง และหักมัดจำ 50% อัตโนมัติ',
+          type: 'info',
+          timestamp: 'เมื่อสักครู่',
+          read: false,
+        },
+        {
+          id: 'notif-2',
+          bookingId: 'bk-101',
+          title: '✂️ คิว BQ-001 กำลังเริ่มตัดแล้ว',
+          message: 'ช่างท็อปเริ่มให้บริการ Skin Fade ให้คุณธนกฤต (ค่าคอม 60%: ฿270)',
+          type: 'status_change',
+          timestamp: '5 นาทีที่แล้ว',
+          read: false,
+        },
+      ];
     } catch {
       return [];
     }
   });
 
-  const [soundEnabled, setSoundEnabledState] = useState(true);
+  const [soundEnabled, setSoundEnabledState] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_SOUND);
+      if (saved !== null) {
+        const parsed = JSON.parse(saved);
+        soundFx.soundEnabled = Boolean(parsed);
+        return Boolean(parsed);
+      }
+    } catch {
+      // Default to enabled
+    }
+    soundFx.soundEnabled = true;
+    return true;
+  });
   const [activeTab, setActiveTab] = useState<ActiveTab>('book');
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
 
@@ -614,6 +643,15 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
   const setSoundEnabled = (enabled: boolean) => {
     setSoundEnabledState(enabled);
     soundFx.soundEnabled = enabled;
+    try {
+      localStorage.setItem(STORAGE_KEY_SOUND, JSON.stringify(enabled));
+    } catch {
+      // ignore
+    }
+    if (enabled) {
+      soundFx.unlock();
+      soundFx.playNotification();
+    }
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -624,9 +662,16 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
     setActiveBookingIdState(id);
   };
 
-  const addNotification = (title: string, message: string, type: AppNotification['type'], bookingId?: string) => {
+  const addNotification = (
+    title: string,
+    message: string,
+    type: AppNotification['type'],
+    bookingId?: string,
+    options?: { silent?: boolean }
+  ) => {
+    const uniqueSuffix = Math.random().toString(36).slice(2, 9);
     const newNotif: AppNotification = {
-      id: 'notif-' + Date.now(),
+      id: `notif-${Date.now()}-${uniqueSuffix}`,
       bookingId,
       title,
       message,
@@ -634,8 +679,13 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
       timestamp: 'เมื่อสักครู่',
       read: false,
     };
-    setNotifications((prev) => [newNotif, ...prev]);
-    soundFx.playNotification();
+    setNotifications((prev) => {
+      const filtered = prev.filter((p) => p.id !== newNotif.id);
+      return [newNotif, ...filtered];
+    });
+    if (!options?.silent && soundEnabled) {
+      soundFx.playNotification();
+    }
   };
 
   // Advance Queue Notification Alert State & Actions (แจ้งเตือนคิวล่วงหน้า 15 นาที)
@@ -662,6 +712,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
     setAdvanceAlertData({ booking: target, minutesLeft });
 
     if (soundEnabled && shopSettings.advanceNotificationSound !== false) {
+      soundFx.unlock();
       soundFx.playQueueAlert();
     }
 
@@ -669,7 +720,8 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
       `⏳ คิว ${target.queueNumber} ใกล้ถึงเวลาใน ${minutesLeft} นาที!`,
       `คุณ${target.customerName} มีนัดหมายบริการ ${target.service.name} กับ${target.barber.name} (${target.barber.nickname}) เวลา ${target.bookingTimeSlot} น.`,
       'warning',
-      target.id
+      target.id,
+      { silent: true } // Dedicated playQueueAlert already played above
     );
   };
 
@@ -930,7 +982,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
 
     const nextNumber = bookings.length + 1;
     const queueNumber = `BQ-${nextNumber.toString().padStart(3, '0')}`;
-    const bookingId = `bk-${Date.now()}`;
+    const bookingId = `bk-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const nowTime = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
     const refNum = isNoDeposit
       ? `ND-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`
@@ -1000,7 +1052,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
     // Auto-record Income Transaction if upfront payment was made
     if (amountPaid > 0) {
       const autoIncomeTx: TransactionItem = {
-        id: `tx-${Date.now()}`,
+        id: `tx-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         type: 'income',
         category: isDeposit ? 'deposit_online' : 'service_cut',
         categoryLabel: isDeposit ? `เงินมัดจำออนไลน์ ${depositPct}%` : 'บริการตัดผม & เซ็ต (100%)',
@@ -1077,7 +1129,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
 
     const nextNumber = bookings.length + 1;
     const queueNumber = `WK-${nextNumber.toString().padStart(3, '0')}`;
-    const bookingId = `bk-walkin-${Date.now()}`;
+    const bookingId = `bk-walkin-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const todayStr = new Date().toISOString().slice(0, 10);
     const nowTime = new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
     const refNum = `WK-${todayStr.replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -1129,7 +1181,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
     // If paid immediately at counter, record income transaction
     if (amountPaid > 0) {
       const autoIncomeTx: TransactionItem = {
-        id: `tx-walkin-${Date.now()}`,
+        id: `tx-walkin-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         type: 'income',
         category: 'service_cut',
         categoryLabel: 'บริการตัดผม Walk-in หน้าร้าน',
@@ -1227,7 +1279,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
         if (target.amountRemaining > 0) {
           const isNoDep = target.paymentOption === 'no_deposit';
           newTxList.push({
-            id: `tx-${Date.now()}-rem`,
+            id: `tx-${Date.now()}-${Math.random().toString(36).slice(2, 7)}-rem`,
             type: 'income',
             category: 'service_cut',
             categoryLabel: isNoDep
@@ -1250,7 +1302,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
         // 2. Record barber commission expense payout
         if (target.barberCommissionEarned > 0) {
           newTxList.push({
-            id: `tx-${Date.now()}-comm`,
+            id: `tx-${Date.now()}-${Math.random().toString(36).slice(2, 7)}-comm`,
             type: 'expense',
             category: 'barber_commission',
             categoryLabel: `ค่าคอมมิชชั่นช่าง (${target.commissionRate || 60}%)`,
@@ -1307,7 +1359,8 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
             `⭐ คุณ ${target.customerName} ได้รับ +${ptsPerCut} แต้มสะสม!`,
             `สะสมแต้มสำเร็จจากการตัดผมคิว ${target.queueNumber} (ครบ 10 แต้มรับส่วนลดพิเศษ ฿${shopSettings.loyaltyRewardDiscount || 150})`,
             'success',
-            bookingId
+            bookingId,
+            { silent: true }
           );
         }
       }
@@ -1316,7 +1369,8 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
         `✂️ อัปเดตคิว ${target.queueNumber}: ${statusLabel}`,
         `ช่าง ${target.barber.nickname} - ${customNote || statusLabel}`,
         'status_change',
-        bookingId
+        bookingId,
+        newStatus === 'COMPLETED' ? { silent: true } : undefined
       );
     }
   };
@@ -1324,7 +1378,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
   // Accounting & Transaction Methods
   const addTransaction = (txData: Omit<TransactionItem, 'id' | 'createdAt'>) => {
     const newTx: TransactionItem = {
-      id: `tx-${Date.now()}`,
+      id: `tx-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       ...txData,
       createdAt: new Date().toISOString(),
     };
@@ -1478,7 +1532,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
 
   const addService = (newServiceData: Omit<Service, 'id'>) => {
     const newService: Service = {
-      id: `srv-${Date.now()}`,
+      id: `srv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       ...newServiceData,
     };
     setServices((prev) => [...prev, newService]);

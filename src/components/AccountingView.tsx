@@ -1524,7 +1524,7 @@ export const AccountingView: React.FC = () => {
         </div>
       )}
 
-      {/* Modal: Printable P&L Statement (งบการเงิน) */}
+      {/* Modal: Printable P&L Statement (งบการเงิน) - Responsive for Mobile & Desktop */}
       {isPrintModalOpen && (
         <div
           onClick={(e) => {
@@ -1532,171 +1532,205 @@ export const AccountingView: React.FC = () => {
               setIsPrintModalOpen(false);
             }
           }}
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto cursor-pointer"
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto cursor-pointer"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="cursor-default bg-white text-zinc-900 rounded-3xl p-5 sm:p-7 w-full max-w-2xl shadow-2xl relative font-sans"
+            className="cursor-default bg-white text-zinc-900 rounded-2xl sm:rounded-3xl shadow-2xl relative font-sans w-full max-w-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col my-auto border border-zinc-200/80 overflow-hidden animate-fadeIn"
           >
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsPrintModalOpen(false);
-              }}
-              className="absolute top-4 right-4 w-9 h-9 rounded-xl text-zinc-500 hover:text-zinc-950 hover:bg-zinc-100 active:scale-90 flex items-center justify-center transition cursor-pointer z-10"
-              title="ปิด"
-              aria-label="ปิด"
-            >
-              <X className="w-5 h-5" />
-            </button>
+            {/* Top Modal Header with Close Button */}
+            <div className="px-4 py-3 sm:px-6 sm:py-3.5 bg-zinc-50 border-b border-zinc-200 flex items-center justify-between shrink-0">
+              <div className="flex items-center space-x-2 min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span className="text-xs sm:text-sm font-bold text-zinc-900 truncate">
+                  รายงานงบการเงิน (P&L Statement)
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-zinc-200 text-zinc-700 font-mono shrink-0">
+                  {period.toUpperCase()}
+                </span>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsPrintModalOpen(false)}
+                className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl text-zinc-500 hover:text-zinc-950 hover:bg-zinc-200 active:scale-90 flex items-center justify-center transition cursor-pointer shrink-0"
+                title="ปิดหน้าต่าง"
+                aria-label="ปิดหน้าต่าง"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
+              </button>
+            </div>
 
             {/* Notification feedback */}
             {reportToast && (
-              <div className="mb-4 p-3 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold flex items-center justify-center space-x-2 animate-fadeIn shadow-sm">
+              <div className="mx-4 mt-3 sm:mx-6 p-2.5 rounded-xl bg-emerald-50 border border-emerald-300 text-emerald-800 text-xs font-bold flex items-center justify-center space-x-2 animate-fadeIn shadow-sm shrink-0">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                 <span>{reportToast}</span>
               </div>
             )}
 
-            {/* Printable & Exportable Statement Document */}
-            <div ref={printReportRef} className="bg-white p-2 sm:p-4 rounded-2xl select-text">
-              {/* Document Header */}
-              <div className="border-b-2 border-zinc-900 pb-4 flex items-start justify-between">
-                <div>
-                  <h2 className="text-xl font-black tracking-tight text-zinc-950 uppercase">
-                    {shopSettings.shopName}
-                  </h2>
-                  <p className="text-xs text-zinc-600">
-                    {shopSettings.branchName} • โทร {shopSettings.phone}
-                  </p>
-                  <p className="text-[11px] text-zinc-500">
-                    เลขประจำตัวผู้เสียภาษี: {shopSettings.taxId}
-                  </p>
-                </div>
-                <div className="text-right">
-                  <span className="text-xs font-extrabold px-2.5 py-1 bg-zinc-900 text-white rounded">
-                    P&L STATEMENT
-                  </span>
-                  <p className="text-xs font-bold mt-1 text-zinc-800">
-                    รายงานงบกำไร-ขาดทุน
-                  </p>
-                  <p className="text-[11px] text-zinc-500">{getPeriodLabel()}</p>
-                </div>
-              </div>
-
-              {/* Summary Table */}
-              <div className="my-6 space-y-4">
-                <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
-                  <div className="flex justify-between text-sm font-bold text-emerald-700 pb-1 border-b border-zinc-200">
-                    <span>1. รายรับทั้งหมด (Total Revenue)</span>
-                    <span>฿{metrics.totalIncome.toLocaleString()}</span>
-                  </div>
-                  <div className="pl-4 pt-2 space-y-1 text-xs text-zinc-600">
-                    <div className="flex justify-between">
-                      <span>- บริการตัดผม & มัดจำออนไลน์ ({metrics.incomeCount} คิว)</span>
-                      <span>฿{metrics.serviceIncome.toLocaleString()}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>- จำหน่ายผลิตภัณฑ์ใส่ผม/แว็กซ์</span>
-                      <span>฿{metrics.productIncome.toLocaleString()}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-200">
-                  <div className="flex justify-between text-sm font-bold text-rose-700 pb-1 border-b border-zinc-200">
-                    <span>2. รายจ่ายทั้งหมด (Total Operating Expenses)</span>
-                    <span>-฿{metrics.totalExpense.toLocaleString()}</span>
-                  </div>
-                  <div className="pl-4 pt-2 space-y-1 text-xs text-zinc-600">
-                    <div className="flex justify-between text-indigo-700 font-semibold">
-                      <span>- ส่วนแบ่งค่าคอมมิชชั่น 3 ช่าง (Barber Commission)</span>
-                      <span>-฿{metrics.commissionExpense.toLocaleString()}</span>
-                    </div>
-                    {(
-                      Object.entries(metrics.categoryTotals) as [
-                        string,
-                        { label: string; amount: number; type: TransactionType }
-                      ][]
-                    )
-                      .filter(([k, v]) => v.type === 'expense' && k !== 'barber_commission')
-                      .map(([k, v]) => (
-                        <div key={k} className="flex justify-between">
-                          <span>- {v.label}</span>
-                          <span>-฿{v.amount.toLocaleString()}</span>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-
-                {/* Net Profit Callout */}
-                <div className="bg-zinc-950 text-white rounded-2xl p-4 flex items-center justify-between">
-                  <div>
-                    <span className="text-xs text-zinc-400 font-bold uppercase tracking-wider">
-                      กำไรสุทธิคงเหลือ (Net Profit Margin: {metrics.profitMargin}%)
-                    </span>
-                    <p className="text-xs text-zinc-400">
-                      ยอดเงินคงเหลือหลังหักส่วนแบ่งช่างและต้นทุนร้าน
+            {/* Scrollable Printable Statement Body */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6 sm:py-5">
+              <div ref={printReportRef} className="bg-white rounded-xl select-text space-y-4 sm:space-y-5">
+                {/* Document Header */}
+                <div className="border-b-2 border-zinc-900 pb-3 sm:pb-4 flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <h2 className="text-lg sm:text-xl font-black tracking-tight text-zinc-950 uppercase leading-tight">
+                      {shopSettings.shopName}
+                    </h2>
+                    <p className="text-[11px] sm:text-xs text-zinc-600 mt-1">
+                      {shopSettings.branchName} • โทร {shopSettings.phone}
+                    </p>
+                    <p className="text-[10px] sm:text-[11px] text-zinc-500 mt-0.5">
+                      เลขประจำตัวผู้เสียภาษี: {shopSettings.taxId}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <span className="text-2xl font-black text-amber-400">
-                      ฿{metrics.netProfit.toLocaleString()}
+                  <div className="sm:text-right shrink-0 flex sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-1 pt-2 sm:pt-0 border-t sm:border-t-0 border-zinc-100">
+                    <span className="text-[10px] sm:text-xs font-black px-2.5 py-1 bg-zinc-900 text-white rounded">
+                      P&L STATEMENT
                     </span>
+                    <div className="text-right">
+                      <p className="text-xs font-bold text-zinc-800">
+                        รายงานงบกำไร-ขาดทุน
+                      </p>
+                      <p className="text-[10px] sm:text-[11px] text-zinc-500 font-medium">{getPeriodLabel()}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Statement Note & Timestamp */}
-              <div className="pt-3 border-t border-zinc-200 flex items-center justify-between text-[11px] text-zinc-500">
-                <span>ออกเอกสารเมื่อ: {new Date().toLocaleString('th-TH')}</span>
-                <span className="text-zinc-400 font-mono">FIN-REPORT-{period.toUpperCase()}</span>
+                {/* Summary Tables Container */}
+                <div className="space-y-3.5 sm:space-y-4">
+                  {/* 1. Revenue */}
+                  <div className="bg-zinc-50/90 rounded-2xl p-3.5 sm:p-4 border border-zinc-200 shadow-sm">
+                    <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-emerald-700 pb-2 border-b border-zinc-200 gap-2">
+                      <span className="truncate">1. รายรับทั้งหมด (Total Revenue)</span>
+                      <span className="shrink-0 tabular-nums text-sm sm:text-base font-black">฿{metrics.totalIncome.toLocaleString()}</span>
+                    </div>
+                    <div className="pt-2.5 space-y-1.5 text-xs text-zinc-600">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate pr-2">- บริการตัดผม & มัดจำออนไลน์ ({metrics.incomeCount} คิว)</span>
+                        <span className="shrink-0 font-medium tabular-nums">฿{metrics.serviceIncome.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="truncate pr-2">- จำหน่ายผลิตภัณฑ์ใส่ผม/แว็กซ์</span>
+                        <span className="shrink-0 font-medium tabular-nums">฿{metrics.productIncome.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2. Operating Expenses */}
+                  <div className="bg-zinc-50/90 rounded-2xl p-3.5 sm:p-4 border border-zinc-200 shadow-sm">
+                    <div className="flex items-center justify-between text-xs sm:text-sm font-bold text-rose-700 pb-2 border-b border-zinc-200 gap-2">
+                      <span className="truncate">2. รายจ่ายทั้งหมด (Total Operating Expenses)</span>
+                      <span className="shrink-0 tabular-nums text-sm sm:text-base font-black">-฿{metrics.totalExpense.toLocaleString()}</span>
+                    </div>
+                    <div className="pt-2.5 space-y-1.5 text-xs text-zinc-600">
+                      <div className="flex items-center justify-between gap-2 text-indigo-700 font-semibold">
+                        <span className="truncate pr-2">- ส่วนแบ่งค่าคอมมิชชั่น 3 ช่าง (Barber Commission)</span>
+                        <span className="shrink-0 font-semibold tabular-nums">-฿{metrics.commissionExpense.toLocaleString()}</span>
+                      </div>
+                      {(
+                        Object.entries(metrics.categoryTotals) as [
+                          string,
+                          { label: string; amount: number; type: TransactionType }
+                        ][]
+                      )
+                        .filter(([k, v]) => v.type === 'expense' && k !== 'barber_commission')
+                        .map(([k, v]) => (
+                          <div key={k} className="flex items-center justify-between gap-2">
+                            <span className="truncate pr-2">- {v.label}</span>
+                            <span className="shrink-0 font-medium tabular-nums">-฿{v.amount.toLocaleString()}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </div>
+
+                  {/* 3. Net Profit Callout */}
+                  <div className="bg-zinc-950 text-white rounded-2xl p-3.5 sm:p-4.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4 shadow-md">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs sm:text-sm font-black uppercase tracking-wider text-zinc-100">
+                          กำไรสุทธิคงเหลือ
+                        </span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          metrics.netProfit >= 0
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                        }`}>
+                          NET MARGIN: {metrics.profitMargin}%
+                        </span>
+                      </div>
+                      <p className="text-[11px] sm:text-xs text-zinc-400 mt-1">
+                        ยอดเงินคงเหลือหลังหักส่วนแบ่งช่างและต้นทุนร้าน
+                      </p>
+                    </div>
+                    <div className="text-left sm:text-right shrink-0 pt-2 sm:pt-0 border-t border-zinc-800/80 sm:border-t-0 flex items-baseline justify-between sm:block">
+                      <span className="text-[11px] text-zinc-400 sm:hidden">ยอดสุทธิ:</span>
+                      <span className="text-xl sm:text-2xl font-black text-amber-400 font-mono tracking-tight tabular-nums">
+                        ฿{metrics.netProfit.toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Statement Note & Timestamp */}
+                <div className="pt-3 border-t border-zinc-200 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[10px] sm:text-[11px] text-zinc-500">
+                  <span>ออกเอกสารเมื่อ: {new Date().toLocaleString('th-TH')}</span>
+                  <span className="text-zinc-400 font-mono font-medium">FIN-REPORT-{period.toUpperCase()}</span>
+                </div>
               </div>
             </div>
 
-            {/* Modal Actions Footer */}
-            <div className="mt-4 pt-4 border-t border-zinc-200 flex flex-wrap items-center justify-between gap-2.5">
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleCopyReportSummary}
-                  className="px-3 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 active:scale-95 text-zinc-800 text-xs font-semibold flex items-center gap-1.5 transition border border-zinc-300/80 cursor-pointer"
-                  title="คัดลอกข้อความสรุป"
-                >
-                  {reportCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-zinc-600" />}
-                  <span>{reportCopied ? 'คัดลอกแล้ว' : 'คัดลอกสรุป'}</span>
-                </button>
+            {/* Modal Actions Footer - Responsive & Equalized for Mobile & Desktop */}
+            <div className="p-3.5 sm:p-4.5 bg-zinc-50 border-t border-zinc-200 shrink-0">
+              <div className="grid grid-cols-2 sm:flex sm:items-center sm:justify-between gap-2 sm:gap-3">
+                {/* Secondary Actions: 2 equal columns on mobile, row on desktop */}
+                <div className="contents sm:flex sm:items-center sm:gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCopyReportSummary}
+                    className="w-full sm:w-auto px-3 py-2.5 rounded-xl bg-white hover:bg-zinc-100 active:scale-95 text-zinc-800 text-xs font-bold flex items-center justify-center gap-1.5 transition border border-zinc-300 shadow-sm cursor-pointer min-h-[42px]"
+                    title="คัดลอกข้อความสรุปงบการเงิน"
+                  >
+                    {reportCopied ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+                    )}
+                    <span className="truncate">{reportCopied ? 'คัดลอกแล้ว' : 'คัดลอกสรุป'}</span>
+                  </button>
 
+                  <button
+                    type="button"
+                    onClick={handlePrintReport}
+                    className="w-full sm:w-auto px-3 py-2.5 rounded-xl bg-white hover:bg-zinc-100 active:scale-95 text-zinc-800 text-xs font-bold flex items-center justify-center gap-1.5 transition border border-zinc-300 shadow-sm cursor-pointer min-h-[42px]"
+                    title="สั่งพิมพ์เอกสาร"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+                    <span className="truncate">สั่งพิมพ์</span>
+                  </button>
+                </div>
+
+                {/* Primary Action: Full width on mobile (col-span-2), right-aligned on desktop */}
                 <button
                   type="button"
-                  onClick={handlePrintReport}
-                  className="px-3 py-2 rounded-xl bg-zinc-100 hover:bg-zinc-200 active:scale-95 text-zinc-800 text-xs font-semibold flex items-center gap-1.5 transition border border-zinc-300/80 cursor-pointer"
-                  title="สั่งพิมพ์เอกสาร"
+                  onClick={handleExportReport}
+                  disabled={isExportingImg}
+                  className="col-span-2 sm:col-auto w-full sm:w-auto px-4 py-2.5 bg-zinc-950 hover:bg-zinc-800 active:scale-95 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-2 transition shadow-md shadow-zinc-950/20 cursor-pointer disabled:opacity-50 min-h-[42px]"
                 >
-                  <Printer className="w-3.5 h-3.5 text-zinc-600" />
-                  <span>สั่งพิมพ์</span>
+                  {isExportingImg ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-amber-400 shrink-0" />
+                      <span className="truncate">กำลังส่งออก...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Printer className="w-4 h-4 text-amber-400 shrink-0" />
+                      <span className="truncate">สั่งพิมพ์ / Export PDF</span>
+                    </>
+                  )}
                 </button>
               </div>
-
-              <button
-                type="button"
-                onClick={handleExportReport}
-                disabled={isExportingImg}
-                className="px-4 py-2.5 bg-zinc-950 hover:bg-zinc-800 active:scale-95 text-white font-bold text-xs rounded-xl flex items-center space-x-2 transition shadow-lg shadow-zinc-950/20 cursor-pointer disabled:opacity-50"
-              >
-                {isExportingImg ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
-                    <span>กำลังส่งออก...</span>
-                  </>
-                ) : (
-                  <>
-                    <Printer className="w-4 h-4 text-white" />
-                    <span>สั่งพิมพ์ / Export PDF</span>
-                  </>
-                )}
-              </button>
             </div>
           </div>
         </div>
