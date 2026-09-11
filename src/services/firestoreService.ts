@@ -266,6 +266,49 @@ export async function deleteTransactionFromFirestore(txId: string): Promise<void
   }
 }
 
+export async function clearAllTransactionsFromFirestore(): Promise<void> {
+  const collectionPath = 'transactions';
+  try {
+    const colRef = collection(db, collectionPath);
+    const snapshot = await getDocs(colRef);
+    if (!snapshot.empty) {
+      const batch = writeBatch(db);
+      snapshot.forEach((docSnap) => {
+        batch.delete(docSnap.ref);
+      });
+      await batch.commit();
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, collectionPath);
+    throw error;
+  }
+}
+
+export async function deleteBarberTransactionsFromFirestore(barberId: string): Promise<void> {
+  const collectionPath = 'transactions';
+  try {
+    const colRef = collection(db, collectionPath);
+    const snapshot = await getDocs(colRef);
+    if (!snapshot.empty) {
+      const batch = writeBatch(db);
+      let count = 0;
+      snapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (data.barberId === barberId) {
+          batch.delete(docSnap.ref);
+          count++;
+        }
+      });
+      if (count > 0) {
+        await batch.commit();
+      }
+    }
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, collectionPath);
+    throw error;
+  }
+}
+
 export async function seedInitialTransactions(
   initialTransactions: TransactionItem[]
 ): Promise<void> {
@@ -325,6 +368,17 @@ export async function saveBarberToFirestore(barber: Barber): Promise<void> {
   try {
     const docRef = doc(db, 'barbers', barber.id);
     await setDoc(docRef, cleanForFirestore(barber), { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.WRITE, path);
+    throw error;
+  }
+}
+
+export async function deleteBarberFromFirestore(barberId: string): Promise<void> {
+  const path = `barbers/${barberId}`;
+  try {
+    const docRef = doc(db, 'barbers', barberId);
+    await deleteDoc(docRef);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
     throw error;

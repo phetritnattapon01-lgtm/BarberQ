@@ -39,16 +39,19 @@ import {
   Copy,
   Check,
   Loader2,
+  AlertTriangle,
 } from 'lucide-react';
 import html2canvas from 'html2canvas-pro';
 import { soundFx } from '../utils/audio';
 import { useBooking } from '../context/BookingContext';
+import { EditBarberModal } from './EditBarberModal';
 import {
   TransactionItem,
   TransactionType,
   TransactionCategory,
   AccountingPeriod,
   BarberId,
+  Barber,
 } from '../types';
 
 interface NewTxFormData {
@@ -92,8 +95,12 @@ export const AccountingView: React.FC = () => {
     transactions,
     addTransaction,
     deleteTransaction,
+    updateTransaction,
     resetTransactions,
     barbers,
+    updateBarberProfile,
+    deleteBarber,
+    resetBarberWorkload,
     shopSettings,
     lockAdmin,
     setActiveTab,
@@ -117,6 +124,9 @@ export const AccountingView: React.FC = () => {
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'add_income' | 'add_expense'>('add_income');
+  const [editingTx, setEditingTx] = useState<TransactionItem | null>(null);
+  const [barberToEdit, setBarberToEdit] = useState<Barber | null>(null);
+  const [barberToDelete, setBarberToDelete] = useState<Barber | null>(null);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
   const [isExportingImg, setIsExportingImg] = useState(false);
   const [reportCopied, setReportCopied] = useState(false);
@@ -467,6 +477,7 @@ export const AccountingView: React.FC = () => {
 
   // Open Modal Helpers
   const handleOpenAddModal = (mode: 'add_income' | 'add_expense') => {
+    setEditingTx(null);
     setModalMode(mode);
     const defaultCat = mode === 'add_income' ? 'service_cut' : 'salon_supplies';
     const catObj = CATEGORY_OPTIONS.find((c) => c.id === defaultCat);
@@ -486,25 +497,60 @@ export const AccountingView: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  const handleOpenEditTx = (tx: TransactionItem) => {
+    setEditingTx(tx);
+    setModalMode(tx.type === 'income' ? 'add_income' : 'add_expense');
+    setFormData({
+      type: tx.type,
+      category: tx.category,
+      categoryLabel: tx.categoryLabel,
+      amount: tx.amount,
+      date: tx.date,
+      time: tx.time,
+      description: tx.description,
+      barberId: tx.barberId || '',
+      paymentMethod: tx.paymentMethod || 'promptpay',
+      referenceNumber: tx.referenceNumber,
+    });
+    setIsModalOpen(true);
+  };
+
   const handleSubmitTransaction = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.amount || Number(formData.amount) <= 0) return;
 
     const chosenBarber = barbers.find((b) => b.id === formData.barberId);
 
-    addTransaction({
-      type: formData.type,
-      category: formData.category,
-      categoryLabel: formData.categoryLabel,
-      amount: Number(formData.amount),
-      date: formData.date,
-      time: formData.time,
-      description: formData.description || formData.categoryLabel,
-      barberId: formData.barberId ? (formData.barberId as BarberId) : undefined,
-      barberName: chosenBarber?.name || chosenBarber?.nickname,
-      paymentMethod: formData.paymentMethod,
-      referenceNumber: formData.referenceNumber || `TX-${Date.now().toString().slice(-6)}`,
-    });
+    if (editingTx) {
+      updateTransaction(editingTx.id, {
+        type: formData.type,
+        category: formData.category,
+        categoryLabel: formData.categoryLabel,
+        amount: Number(formData.amount),
+        date: formData.date,
+        time: formData.time,
+        description: formData.description || formData.categoryLabel,
+        barberId: formData.barberId ? (formData.barberId as BarberId) : undefined,
+        barberName: chosenBarber?.name || chosenBarber?.nickname,
+        paymentMethod: formData.paymentMethod,
+        referenceNumber: formData.referenceNumber,
+      });
+      setEditingTx(null);
+    } else {
+      addTransaction({
+        type: formData.type,
+        category: formData.category,
+        categoryLabel: formData.categoryLabel,
+        amount: Number(formData.amount),
+        date: formData.date,
+        time: formData.time,
+        description: formData.description || formData.categoryLabel,
+        barberId: formData.barberId ? (formData.barberId as BarberId) : undefined,
+        barberName: chosenBarber?.name || chosenBarber?.nickname,
+        paymentMethod: formData.paymentMethod,
+        referenceNumber: formData.referenceNumber || `TX-${Date.now().toString().slice(-6)}`,
+      });
+    }
 
     setIsModalOpen(false);
   };
@@ -947,7 +993,7 @@ export const AccountingView: React.FC = () => {
               return (
                 <div
                   key={barber.id}
-                  className="bg-zinc-950/80 border border-zinc-800/80 rounded-2xl p-3 flex items-center justify-between gap-2.5"
+                  className="bg-zinc-950/80 border border-zinc-800/80 rounded-2xl p-3 flex items-center justify-between gap-2.5 transition hover:border-zinc-700"
                 >
                   <div className="flex items-center space-x-3 min-w-0">
                     <img
@@ -971,13 +1017,44 @@ export const AccountingView: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="text-right shrink-0">
-                    <span className="text-sm font-black text-amber-400 block whitespace-nowrap">
-                      ฿{bData.amount.toLocaleString()}
-                    </span>
-                    <p className="text-[10px] text-zinc-500 whitespace-nowrap mt-0.5">
-                      {percentOfTotalComm}% ของค่าคอมฯ รวม
-                    </p>
+                  <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+                    <div className="text-right">
+                      <span className="text-sm font-black text-amber-400 block whitespace-nowrap">
+                        ฿{bData.amount.toLocaleString()}
+                      </span>
+                      <p className="text-[10px] text-zinc-500 whitespace-nowrap mt-0.5">
+                        {percentOfTotalComm}% ของค่าคอมฯ รวม
+                      </p>
+                    </div>
+
+                    {/* Action buttons: Edit & Delete */}
+                    <div className="flex items-center gap-1 pl-1.5 border-l border-zinc-800">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setBarberToEdit(barber);
+                        }}
+                        className="px-2 py-1.5 rounded-lg bg-zinc-900 hover:bg-amber-500/20 text-zinc-300 hover:text-amber-300 border border-zinc-800 hover:border-amber-500/40 transition cursor-pointer active:scale-95 flex items-center gap-1 text-[11px] font-bold shadow-sm"
+                        title={`แก้ไขข้อมูลช่าง / อัตราค่าคอม % (${barber.nickname})`}
+                      >
+                        <Edit2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                        <span className="hidden sm:inline">แก้ไข</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setBarberToDelete(barber);
+                        }}
+                        className="px-2 py-1.5 rounded-lg bg-zinc-900 hover:bg-rose-500/20 text-zinc-300 hover:text-rose-300 border border-zinc-800 hover:border-rose-500/40 transition cursor-pointer active:scale-95 flex items-center gap-1 text-[11px] font-bold shadow-sm"
+                        title={`ลบช่าง หรือ รีเซ็ตยอดเป็น ฿0 (${barber.nickname})`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                        <span className="hidden sm:inline">ลบ</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               );
@@ -1214,8 +1291,8 @@ export const AccountingView: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Amount & Delete */}
-                    <div className="flex items-center space-x-2.5 shrink-0 pt-0.5">
+                    {/* Amount, Edit & Delete */}
+                    <div className="flex items-center space-x-2 shrink-0 pt-0.5">
                       <span
                         className={`text-base sm:text-lg font-black tracking-tight whitespace-nowrap ${
                           isIncome ? 'text-emerald-400' : 'text-rose-400'
@@ -1224,16 +1301,25 @@ export const AccountingView: React.FC = () => {
                         {isIncome ? '+' : '-'} ฿{tx.amount.toLocaleString()}
                       </span>
 
-                      {!tx.isAutoGenerated && (
+                      <div className="flex items-center space-x-1 pl-1 border-l border-zinc-800">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditTx(tx)}
+                          title="แก้ไขรายการธุรกรรมนี้"
+                          className="p-1.5 rounded-lg text-zinc-500 hover:text-amber-300 hover:bg-amber-500/10 transition cursor-pointer active:scale-90"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => deleteTransaction(tx.id)}
-                          title="ลบรายการ"
-                          className="p-1.5 rounded-lg text-zinc-600 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer"
+                          title="ลบรายการธุรกรรมนี้"
+                          className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer active:scale-90"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                      )}
+                      </div>
                     </div>
                   </div>
 
@@ -1294,12 +1380,16 @@ export const AccountingView: React.FC = () => {
             <div className="flex items-center space-x-2.5 mb-4">
               <div
                 className={`w-9 h-9 rounded-xl flex items-center justify-center ${
-                  modalMode === 'add_income'
+                  editingTx
+                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                    : modalMode === 'add_income'
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                     : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                 }`}
               >
-                {modalMode === 'add_income' ? (
+                {editingTx ? (
+                  <Edit2 className="w-5 h-5" />
+                ) : modalMode === 'add_income' ? (
                   <ArrowUpRight className="w-5 h-5" />
                 ) : (
                   <ArrowDownRight className="w-5 h-5" />
@@ -1307,10 +1397,16 @@ export const AccountingView: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-base font-bold text-white">
-                  {modalMode === 'add_income' ? 'บันทึกรายรับใหม่' : 'บันทึกรายจ่ายใหม่'}
+                  {editingTx
+                    ? 'แก้ไขรายการธุรกรรม'
+                    : modalMode === 'add_income'
+                    ? 'บันทึกรายรับใหม่'
+                    : 'บันทึกรายจ่ายใหม่'}
                 </h3>
                 <p className="text-xs text-zinc-400">
-                  เพิ่มรายการเข้าสู่ระบบบัญชีร้านตัดผม
+                  {editingTx
+                    ? `แก้ไขข้อมูลรายการ #${editingTx.referenceNumber}`
+                    : 'เพิ่มรายการเข้าสู่ระบบบัญชีร้านตัดผม'}
                 </p>
               </div>
             </div>
@@ -1516,7 +1612,7 @@ export const AccountingView: React.FC = () => {
                       : 'bg-rose-600 hover:bg-rose-500'
                   }`}
                 >
-                  ยืนยันบันทึกข้อมูล
+                  {editingTx ? 'บันทึกการแก้ไข' : 'ยืนยันบันทึกข้อมูล'}
                 </button>
               </div>
             </form>
@@ -1731,6 +1827,141 @@ export const AccountingView: React.FC = () => {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Modal: Edit Barber Profile & Commission */}
+      {barberToEdit && (
+        <EditBarberModal
+          barber={barberToEdit}
+          isOpen={!!barberToEdit}
+          onClose={() => setBarberToEdit(null)}
+          onSave={(barberId, updates) => {
+            updateBarberProfile(barberId, updates);
+            setBarberToEdit(null);
+          }}
+        />
+      )}
+
+      {/* Modal: Delete or Reset Barber Workload */}
+      {barberToDelete && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setBarberToDelete(null);
+            }
+          }}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="cursor-default bg-zinc-950 border border-zinc-800 rounded-3xl p-5 sm:p-6 w-full max-w-md shadow-2xl relative space-y-4"
+          >
+            <button
+              type="button"
+              onClick={() => setBarberToDelete(null)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-900 flex items-center justify-center transition cursor-pointer"
+              title="ปิด"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header with Barber Info */}
+            <div className="flex items-center space-x-3.5 pr-8">
+              <img
+                src={barberToDelete.avatarUrl}
+                alt={barberToDelete.name}
+                referrerPolicy="no-referrer"
+                className="w-12 h-12 rounded-2xl object-cover border-2 border-zinc-700 shrink-0"
+              />
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-white flex items-center gap-1.5 flex-wrap">
+                  <span>{barberToDelete.name}</span>
+                  <span className="text-amber-400 text-sm">({barberToDelete.nickname})</span>
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  อัตราค่าคอมมิชชั่น: <span className="text-amber-400 font-bold">{barberToDelete.commissionRate}%</span>
+                </p>
+              </div>
+            </div>
+
+            {/* Current Stats Box */}
+            <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3.5 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-zinc-400 block">งานตัดผมช่วงนี้</span>
+                <span className="text-sm font-bold text-white">
+                  {metrics.barberCommMap[barberToDelete.id]?.count || 0} งาน
+                </span>
+              </div>
+              <div className="text-right">
+                <span className="text-[11px] text-zinc-400 block">ยอดค่าคอมฯ สะสม</span>
+                <span className="text-base font-black text-amber-400 font-mono">
+                  ฿{(metrics.barberCommMap[barberToDelete.id]?.amount || 0).toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2.5 pt-1">
+              <p className="text-xs font-semibold text-zinc-300">
+                เลือกการดำเนินการสำหรับช่างท่านนี้:
+              </p>
+
+              {/* Option 1: Reset Workload and Commission to 0 */}
+              <button
+                type="button"
+                onClick={async () => {
+                  const b = barberToDelete;
+                  setBarberToDelete(null);
+                  await resetBarberWorkload(b.id);
+                }}
+                className="w-full text-left p-3.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition cursor-pointer group space-y-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                    <Scissors className="w-4 h-4 text-amber-400" />
+                    ล้างยอดงานและค่าคอมมิชชั่นเป็น ฿0
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">
+                    แนะนำ
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-400 leading-relaxed group-hover:text-zinc-300">
+                  รีเซ็ตจำนวนงานตัดผมและยอดเงินค่าคอมมิชชั่นของ {barberToDelete.nickname} ให้กลับเป็น 0 ทันที โดยยังคงข้อมูลช่างไว้ในระบบ
+                </p>
+              </button>
+
+              {/* Option 2: Delete Barber Permanently */}
+              <button
+                type="button"
+                onClick={async () => {
+                  const b = barberToDelete;
+                  setBarberToDelete(null);
+                  await deleteBarber(b.id);
+                }}
+                className="w-full text-left p-3.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition cursor-pointer group space-y-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-rose-400 flex items-center gap-1.5">
+                    <Trash2 className="w-4 h-4 text-rose-400" />
+                    ลบช่างคนนี้ออกจากระบบ (Delete Barber)
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-400 leading-relaxed group-hover:text-zinc-300">
+                  ลบข้อมูล {barberToDelete.name} ออกจากระบบร้านและฐานข้อมูลอย่างถาวร
+                </p>
+              </button>
+            </div>
+
+            {/* Footer Cancel */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setBarberToDelete(null)}
+                className="w-full py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold transition cursor-pointer"
+              >
+                ยกเลิก
+              </button>
             </div>
           </div>
         </div>

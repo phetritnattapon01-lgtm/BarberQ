@@ -52,6 +52,8 @@ export const AdminSettings: React.FC = () => {
     setActiveTab,
     updateBarberCommissionRate,
     updateBarberProfile,
+    deleteBarber,
+    resetBarberWorkload,
     toggleBarberActiveStatus,
     updateService,
     addService,
@@ -99,6 +101,7 @@ export const AdminSettings: React.FC = () => {
 
   // Editing service & barber state
   const [barberToEdit, setBarberToEdit] = useState<Barber | null>(null);
+  const [barberToDelete, setBarberToDelete] = useState<Barber | null>(null);
   const [editingServiceId, setEditingServiceId] = useState<string | null>(null);
   const [editPrice, setEditPrice] = useState<number>(0);
   const [editDuration, setEditDuration] = useState<number>(0);
@@ -597,8 +600,8 @@ export const AdminSettings: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* Actions: On mobile/tablet 2 equal buttons (50% / 50%), on desktop equal flex items */}
-                    <div className="grid grid-cols-2 lg:flex lg:items-center gap-2 pt-3 lg:pt-0 border-t lg:border-t-0 border-zinc-800/80 shrink-0">
+                    {/* Actions: Grid on mobile, flex on desktop */}
+                    <div className="grid grid-cols-3 lg:flex lg:items-center gap-2 pt-3 lg:pt-0 border-t lg:border-t-0 border-zinc-800/80 shrink-0">
                       {/* Edit Barber Profile Button */}
                       <button
                         type="button"
@@ -607,7 +610,7 @@ export const AdminSettings: React.FC = () => {
                         title="คลิกเพื่อแก้ไขข้อมูลช่างทั้งหมด (ชื่อ, รูป, ตำแหน่ง, เก้าอี้, เวลา, ค่าคอม)"
                       >
                         <Edit2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                        <span>แก้ไขข้อมูล</span>
+                        <span>แก้ไข</span>
                       </button>
 
                       {/* Status Toggle Button */}
@@ -626,7 +629,18 @@ export const AdminSettings: React.FC = () => {
                             isClosed ? 'bg-rose-500' : 'bg-emerald-400 animate-pulse'
                           }`}
                         />
-                        <span>{isClosed ? 'เปิดรับคิว' : 'ปิดรับคิว'}</span>
+                        <span>{isClosed ? 'เปิดคิว' : 'ปิดคิว'}</span>
+                      </button>
+
+                      {/* Delete / Reset Barber Button */}
+                      <button
+                        type="button"
+                        onClick={() => setBarberToDelete(barber)}
+                        className="min-h-[42px] px-3 py-2 rounded-xl text-xs font-bold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition flex items-center justify-center space-x-1.5 shadow-sm active:scale-95 cursor-pointer whitespace-nowrap"
+                        title="ลบช่าง หรือ รีเซ็ตยอดงานเป็น ฿0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                        <span>ลบ/รีเซ็ต</span>
                       </button>
                     </div>
                   </div>
@@ -1626,6 +1640,117 @@ export const AdminSettings: React.FC = () => {
                 className="py-2.5 px-4 bg-amber-500 hover:bg-amber-400 active:scale-95 text-zinc-950 text-xs font-bold rounded-xl shadow-lg shadow-amber-500/20 transition"
               >
                 ยืนยันรีเซ็ต
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Delete or Reset Barber */}
+      {barberToDelete && (
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setBarberToDelete(null);
+            }
+          }}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto cursor-pointer"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="cursor-default bg-zinc-950 border border-zinc-800 rounded-3xl p-5 sm:p-6 w-full max-w-md shadow-2xl relative space-y-4"
+          >
+            <button
+              type="button"
+              onClick={() => setBarberToDelete(null)}
+              className="absolute top-4 right-4 w-8 h-8 rounded-xl text-zinc-400 hover:text-white hover:bg-zinc-900 flex items-center justify-center transition cursor-pointer"
+              title="ปิด"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            {/* Header with Barber Info */}
+            <div className="flex items-center space-x-3.5 pr-8">
+              <img
+                src={barberToDelete.avatarUrl}
+                alt={barberToDelete.name}
+                referrerPolicy="no-referrer"
+                className="w-12 h-12 rounded-2xl object-cover border-2 border-zinc-700 shrink-0"
+              />
+              <div className="min-w-0">
+                <h3 className="text-base font-bold text-white flex items-center gap-1.5 flex-wrap">
+                  <span>{barberToDelete.name}</span>
+                  <span className="text-amber-400 text-sm">({barberToDelete.nickname})</span>
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  เก้าอี้ตัดผม {barberToDelete.chairNumber} • ค่าคอมฯ <span className="text-amber-400 font-bold">{barberToDelete.commissionRate}%</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2.5 pt-1">
+              <p className="text-xs font-semibold text-zinc-300">
+                เลือกการดำเนินการสำหรับช่างท่านนี้:
+              </p>
+
+              {/* Option 1: Reset Workload and Commission to 0 */}
+              <button
+                type="button"
+                onClick={async () => {
+                  const b = barberToDelete;
+                  setBarberToDelete(null);
+                  await resetBarberWorkload(b.id);
+                  setServiceActionToast(`ล้างยอดงานและค่าคอมมิชชั่นของ ${b.nickname} เป็น ฿0 เรียบร้อย`);
+                  setTimeout(() => setServiceActionToast(null), 3500);
+                }}
+                className="w-full text-left p-3.5 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition cursor-pointer group space-y-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+                    <Scissors className="w-4 h-4 text-amber-400" />
+                    ล้างยอดงานและค่าคอมมิชชั่นเป็น ฿0
+                  </span>
+                  <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">
+                    แนะนำ
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-400 leading-relaxed group-hover:text-zinc-300">
+                  รีเซ็ตจำนวนงานตัดผมและยอดเงินค่าคอมมิชชั่นของ {barberToDelete.nickname} ให้กลับเป็น 0 ทันที โดยยังคงข้อมูลช่างไว้ในระบบ
+                </p>
+              </button>
+
+              {/* Option 2: Delete Barber Permanently */}
+              <button
+                type="button"
+                onClick={async () => {
+                  const b = barberToDelete;
+                  setBarberToDelete(null);
+                  await deleteBarber(b.id);
+                  setServiceActionToast(`ลบข้อมูลช่าง ${b.nickname} ออกจากระบบเรียบร้อย`);
+                  setTimeout(() => setServiceActionToast(null), 3500);
+                }}
+                className="w-full text-left p-3.5 rounded-2xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 transition cursor-pointer group space-y-1"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-rose-400 flex items-center gap-1.5">
+                    <Trash2 className="w-4 h-4 text-rose-400" />
+                    ลบช่างคนนี้ออกจากระบบ (Delete Barber)
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-400 leading-relaxed group-hover:text-zinc-300">
+                  ลบข้อมูล {barberToDelete.name} ออกจากระบบร้านและฐานข้อมูลอย่างถาวร
+                </p>
+              </button>
+            </div>
+
+            {/* Footer Cancel */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setBarberToDelete(null)}
+                className="w-full py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-bold transition cursor-pointer"
+              >
+                ยกเลิก
               </button>
             </div>
           </div>

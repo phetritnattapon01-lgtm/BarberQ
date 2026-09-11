@@ -40,9 +40,12 @@ import {
   subscribeToTransactions,
   saveTransactionToFirestore,
   deleteTransactionFromFirestore,
+  clearAllTransactionsFromFirestore,
+  deleteBarberTransactionsFromFirestore,
   seedInitialTransactions,
   subscribeToBarbers,
   saveBarberToFirestore,
+  deleteBarberFromFirestore,
   seedInitialBarbers,
 } from '../services/firestoreService';
 import firebaseConfig from '../../firebase-applet-config.json';
@@ -153,6 +156,8 @@ interface BookingContextType {
   updateBarberCommissionRate: (barberId: BarberId, newRate: number) => void;
   updateBarberProfile: (barberId: BarberId, updates: Partial<Barber>) => void;
   toggleBarberActiveStatus: (barberId: BarberId) => void;
+  deleteBarber: (barberId: BarberId) => void;
+  resetBarberWorkload: (barberId: BarberId) => void;
   updateService: (serviceId: string, updates: Partial<Service>) => void;
   addService: (newService: Omit<Service, 'id'>) => void;
   deleteService: (serviceId: string) => void;
@@ -614,7 +619,7 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
     const unsubTransactions = subscribeToTransactions(
       (remoteTxs) => {
         if (!isMounted) return;
-        if (remoteTxs && remoteTxs.length > 0) {
+        if (remoteTxs) {
           setTransactions(remoteTxs);
         }
       }
@@ -1412,9 +1417,20 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
     soundFx.playSuccess();
   };
 
-  const resetTransactions = () => {
-    setTransactions(INITIAL_TRANSACTIONS);
+  const resetTransactions = async () => {
+    setTransactions([]);
+    try {
+      localStorage.setItem(STORAGE_KEY_TRANSACTIONS, JSON.stringify([]));
+      await clearAllTransactionsFromFirestore();
+    } catch (err) {
+      console.error('Failed to clear transactions from firestore:', err);
+    }
     soundFx.playNotification();
+    addNotification(
+      '📊 รีเซ็ตค่าใช้จ่ายและรายรับเรียบร้อย',
+      'ล้างรายการรายรับและรายจ่ายทั้งหมดเป็น ฿0 แล้ว',
+      'info'
+    );
   };
 
   const cancelBooking = (bookingId: string) => {
@@ -1519,6 +1535,59 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
       newStatus
         ? `ช่าง ${current?.name} พร้อมเปิดรับคิวลูกค้าตามปกติ`
         : `ช่าง ${current?.name} ปิดรับคิวชั่วคราว (พักงาน/ลาหยุด/งดรับคิว)`,
+      'info'
+    );
+  };
+
+  const deleteBarber = (barberId: BarberId) => {
+    const targetBarber = barbers.find((b) => b.id === barberId);
+    setBarbers((prev) => {
+      const updated = prev.filter((b) => b.id !== barberId);
+      localStorage.setItem(STORAGE_KEY_BARBERS, JSON.stringify(updated));
+      return updated;
+    });
+
+    deleteBarberFromFirestore(barberId).catch(console.error);
+
+    if (selectedBarberId === barberId) {
+      const remaining = barbers.filter((b) => b.id !== barberId && b.isActive !== false);
+      setSelectedBarberId(remaining.length > 0 ? remaining[0].id : null);
+    }
+
+    soundFx.playNotification();
+    addNotification(
+      `🗑️ ลบข้อมูลช่าง ${targetBarber?.nickname || barberId}`,
+      `นำข้อมูลช่าง ${targetBarber?.name || ''} ออกจากระบบเรียบร้อยแล้ว`,
+      'info'
+    );
+  };
+
+  const resetBarberWorkload = (barberId: BarberId) => {
+    const targetBarber = barbers.find((b) => b.id === barberId);
+
+    // 1. Remove or zero out bookings of this barber
+    setBookings((prev) => {
+      const toDelete = prev.filter((b) => b.barberId === barberId);
+      toDelete.forEach((b) => {
+        deleteBookingFromFirestore(b.id).catch(console.error);
+      });
+      const updated = prev.filter((b) => b.barberId !== barberId);
+      localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(updated));
+      return updated;
+    });
+
+    // 2. Remove transactions for this barber
+    setTransactions((prev) => {
+      const updated = prev.filter((t) => t.barberId !== barberId);
+      localStorage.setItem(STORAGE_KEY_TRANSACTIONS, JSON.stringify(updated));
+      return updated;
+    });
+    deleteBarberTransactionsFromFirestore(barberId).catch(console.error);
+
+    soundFx.playSuccess();
+    addNotification(
+      `✂️ รีเซ็ตยอดงานช่าง ${targetBarber?.nickname || barberId}`,
+      `ล้างงานตัดผมและยอดค่าคอมมิชชั่นของ ${targetBarber?.nickname || ''} เป็น ฿0 เรียบร้อยแล้ว`,
       'info'
     );
   };
@@ -1631,6 +1700,8 @@ export const BookingProvider: React.FC<{ children: ReactNode }> = ({ children })
         updateBarberCommissionRate,
         updateBarberProfile,
         toggleBarberActiveStatus,
+        deleteBarber,
+        resetBarberWorkload,
         updateService,
         addService,
         deleteService,
